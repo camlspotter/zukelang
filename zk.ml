@@ -231,6 +231,8 @@ module R1CS = struct
     loop rows
 end
 
+module PQ = Polynomial.Make(Polynomial.Q)
+
 module QAP = struct
   let of_R1CS_rows rows =
     let trans = R1CS.transpose rows in
@@ -243,9 +245,9 @@ module QAP = struct
       List.map (fun (n,xs) ->
           let xs = List.rev xs in
           let xys = List.mapi (fun i x -> (Q.of_int (i+1), Q.of_int x)) xs in
-          n, Polynomial.interporate xys) trans
+          n, PQ.interporate xys) trans
     in
-    List.iter (fun (n,p) -> Format.eprintf "%s: %a@." n Polynomial.pp p) ps;
+    List.iter (fun (n,p) -> Format.eprintf "%s: %a@." n PQ.pp p) ps;
     ps
 
   let of_R1CS {R1CS.aa; bb; cc} =
@@ -288,30 +290,30 @@ let () =
 
   let mul_sol qx =
     (* qx . s *)
-    List.fold_left Polynomial.add Polynomial.zero
+    List.fold_left PQ.add PQ.zero
     @@ List.map (fun (s,f) ->
         let x = List.assoc s sol in
-        Polynomial.mul_scalar (Q.of_int x) f) qx
+        PQ.mul_scalar (Q.of_int x) f) qx
   in
 
   let qas = mul_sol qa in
   let qbs = mul_sol qb in
   let qcs = mul_sol qc in
-  Format.eprintf "A.s = %a@." Polynomial.pp qas;
-  Format.eprintf "B.s = %a@." Polynomial.pp qbs;
-  Format.eprintf "C.s = %a@." Polynomial.pp qcs;
+  Format.eprintf "A.s = %a@." PQ.pp qas;
+  Format.eprintf "B.s = %a@." PQ.pp qbs;
+  Format.eprintf "C.s = %a@." PQ.pp qcs;
 
   (* A.s * B.s - C.s *)
-  let t = Polynomial.(add (mul qas qbs) (neg qcs)) in
-  Format.eprintf "A.s * B.s - C.s = %a@." Polynomial.pp t;
+  let t = PQ.(add (mul qas qbs) (neg qcs)) in
+  Format.eprintf "A.s * B.s - C.s = %a@." PQ.pp t;
 
   let q = Q.of_int in
-  let z = List.fold_left Polynomial.mul Polynomial.one
+  let z = List.fold_left PQ.mul PQ.one
       [ [q (-1); q 1];
         [q (-2); q 1];
         [q (-3); q 1];
         [q (-4); q 1] ]
   in
-  let div, rem = Polynomial.div_rem t z in
-  Format.eprintf "t/z = %a@." Polynomial.pp div;
-  Format.eprintf "t mod z = %a@." Polynomial.pp rem
+  let div, rem = PQ.div_rem t z in
+  Format.eprintf "t/z = %a@." PQ.pp div;
+  Format.eprintf "t mod z = %a@." PQ.pp rem
