@@ -1,0 +1,5 @@
+(executable
+  (name zk)
+  (libraries zarith)
+  (flags :standard -warn-error -9-32-34-37)
+  )
