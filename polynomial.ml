@@ -1,3 +1,5 @@
+open Utils
+
 module type S = sig
   type t
   val of_int : int -> t
@@ -18,9 +20,7 @@ module Q = struct
 end
 
 module Make(A : S) = struct
-  type polynomial = A.t list (* a + bx + cx^2 + dx^3 *)
-
-  let pp_list_sep fmt = fun ppf () -> Format.fprintf ppf fmt
+  type t = A.t list (* a + bx + cx^2 + dx^3 *)
 
   let zero = []
   let one = [A.one]
