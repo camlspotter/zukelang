@@ -1,11 +1,22 @@
 (* Learning Bls12-381 *)
 
 module Bls12_381 = struct
+  (* extend Bls12_381 with some printers *)
   include Bls12_381
 
   module Fr = struct
     include Fr
     let pp ppf fr = Z.pp_print ppf (to_z fr)
+  end
+
+  module G1 = struct
+    include G1
+    let pp ppf g1 = Format.fprintf ppf "%a" Hex.pp (Hex.of_bytes (G1.to_bytes g1))
+  end
+
+  module G2 = struct
+    include G2
+    let pp ppf g2 = Format.fprintf ppf "%a" Hex.pp (Hex.of_bytes (G2.to_bytes g2))
   end
 end
 
@@ -24,19 +35,17 @@ let test_pairing () =
      I believe Bls12_381 does NOT provide a way to decode a G1 point to Fq.t * Fq.t
      Bytes encoding of G1 point is in little endian.
   *)
-  let pp_g1 ppf g1 = Format.fprintf ppf "%a" Hex.pp (Hex.of_bytes (G1.to_bytes g1)) in
-  let pp_g2 ppf g2 = Format.fprintf ppf "%a" Hex.pp (Hex.of_bytes (G2.to_bytes g2)) in
-  Format.eprintf "G1.zero: %a@." pp_g1 G1.zero;
-  Format.eprintf "G1.one: %a@." pp_g1 G1.one;
+  Format.eprintf "G1.zero: %a@." G1.pp G1.zero;
+  Format.eprintf "G1.one: %a@." G1.pp G1.one;
   (* val G1.mul : G1.t -> Fr.t -> G1.t *)
   let g1_123 = G1.(mul one (Fr.of_z (Z.of_int 123))) in
-  Format.eprintf "G1.123: %a@." pp_g1 g1_123;
+  Format.eprintf "G1.123: %a@." G1.pp g1_123;
   (* G2 : curve built over the field [Fq^2]
      I believe Bls12_381 does NOT provide a way to decode a G1 point to Fq.t * Fq.t
      Bytes encoding of G2 point is in little endian.
   *)
-  Format.eprintf "G2.zero: %a@." pp_g2 G2.zero;
-  Format.eprintf "G2.one: %a@." pp_g2 G2.one;
+  Format.eprintf "G2.zero: %a@." G2.pp G2.zero;
+  Format.eprintf "G2.one: %a@." G2.pp G2.one;
 
   (* k : toxic waste.  It must not be known to ANYONE *)
   let k = Fr.random ~state () in
