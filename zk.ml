@@ -380,19 +380,18 @@ let () =
 
   (* Pairing check *)
   let state = Random.State.make [||] in
-  (* k : toxic waste *)
+
+  (* k : toxic waste.  It must not be known to ANYONE *)
   let k = Fr.random ~state () in
-  (* g2_k is open.  It is computationaly impossible to find k from g2_k *)
-  let _K : G2.t =
-    Format.eprintf "k: %a@." Fr.pp k;
-    G2.mul G2.one k
-  in
+  Format.eprintf "k: %a@." Fr.pp k;
+
   (* P and Q are open *)
   let (_P : G1.t), (_Q : G2.t) =
     let p = Fr.random ~state () in
     (* (P,Q) where Q = P * k *)
     let _P = G1.mul G1.one p in
-    let _Q = G2.mul _K p in
+    let _Q = G2.mul (G2.mul G2.one k) p in
+    (* Once _Q is computed, k must be discarded immediately *)
     _P, _Q
   in
   (* r : only the prover knows it *)
