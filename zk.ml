@@ -391,9 +391,11 @@ let () =
     (* (P,Q) where Q = P * k *)
     let _P = G1.mul G1.one p in
     let _Q = G2.mul (G2.mul G2.one k) p in
-    (* Once _Q is computed, k must be discarded immediately *)
     _P, _Q
   in
+
+  (* Once _Q is computed, k must be discarded immediately *)
+
   (* r : only the prover knows it *)
   let r = Fr.random ~state () in
   (* (R,S) = (P * r, Q * r) *)
