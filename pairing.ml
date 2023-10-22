@@ -14,14 +14,14 @@ module Bls12_381 = struct
     include G1
 
     let pp ppf g1 =
-      Format.fprintf ppf "%a" Hex.pp (Hex.of_bytes (G1.to_bytes g1))
+      Hex.pp ppf (Hex.of_bytes (G1.to_bytes g1))
   end
 
   module G2 = struct
     include G2
 
     let pp ppf g2 =
-      Format.fprintf ppf "%a" Hex.pp (Hex.of_bytes (G2.to_bytes g2))
+      Hex.pp ppf (Hex.of_bytes (G2.to_bytes g2))
   end
 end
 
