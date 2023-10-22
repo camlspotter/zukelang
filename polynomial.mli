@@ -14,6 +14,7 @@ module Make (A : Field.S) : sig
   val gen : Random.State.t -> A.t list
 
   val apply : A.t list -> A.t -> A.t
+  (** Compute f(x) for the specified value of x *)
 
   val normalize : A.t list -> A.t list
 
@@ -25,17 +26,9 @@ module Make (A : Field.S) : sig
 
   val mul : A.t list -> A.t list -> A.t list
 
-  val test_mul : unit -> unit
-
   val div_rem : A.t list -> A.t list -> A.t list * A.t list
 
   val lagrange_basis : A.t list -> A.t list list
 
   val interporate : (A.t * A.t) list -> A.t list
-
-  val test_apply : unit -> unit
-
-  val test_div_rem : unit -> unit
-
-  val test_interporate : unit -> unit
 end
