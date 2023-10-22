@@ -1,29 +1,13 @@
 open Utils
 
-module type S = sig
-  type t
-  val of_int : int -> t
-  val zero : t
-  val one : t
-  val pp : Format.formatter -> t -> unit
-  val equal : t -> t -> bool
-  val (+) : t -> t -> t
-  val (-) : t -> t -> t
-  val ( * ) : t -> t -> t
-  val (/) : t -> t -> t
-  val (~-) : t -> t
-end
+module Make(A : Field.S) = struct
+  type polynomial = A.t list (* a + bx + cx^2 + dx^3 *)
 
-module Q = struct
-  include Q
-  let pp = pp_print
-end
+  type t = polynomial
 
-module Make(A : S) = struct
-  type t = A.t list (* a + bx + cx^2 + dx^3 *)
+  let zero = [] (* 0 *)
 
-  let zero = []
-  let one = [A.one]
+  let one = [A.one] (* 1 *)
 
   let pp ppf p =
     let open Format in
@@ -36,6 +20,7 @@ module Make(A : S) = struct
             else fprintf ppf "%a x^%d" A.pp p i)
           ppf @@ List.mapi (fun i a -> (i,a)) p
 
+  (* f(x) *)
   let apply f x =
     fst @@
     List.fold_left (fun (acc,xi) a ->
@@ -158,22 +143,23 @@ module Make(A : S) = struct
     ()
 
   (* Lagrange base polynomials l_j(x) for j = 1 to #xs *)
-  let ls xs =
+  let lagrange_basis xs =
     let rec f sx = function
       | [] -> []
       | xj::xs ->
           (List.fold_left mul one
            @@ List.map (fun xi ->
-               let xj_xi = let open A in xj - xi in
-               assert (not @@ A.equal xj_xi A.zero);
-               A.[~- xi / xj_xi ; one / xj_xi ] (* -xi + x *))
+               let open A in
+               let xj_xi = xj - xi in
+               assert (not @@ equal xj_xi zero);
+               [~- xi / xj_xi ; one / xj_xi ] (* -xi + x *))
            @@ List.rev_append sx xs)
           :: f (xj::sx) xs
     in
     f [] xs
 
   let interporate xys =
-    let ls = ls @@ List.map fst xys in
+    let ls = lagrange_basis @@ List.map fst xys in
     List.fold_left add zero
     @@ List.map2 (fun (_,y) l -> mul_scalar y l) xys ls
 

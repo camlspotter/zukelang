@@ -1,135 +1,10 @@
 (* https://medium.com/@VitalikButerin/quadratic-arithmetic-programs-from-zero-to-hero-f6d558cea649 *)
 
 open Utils
-
-module VarSet = Set.Make(struct type t = string let compare (x : string) y = compare x y end)
-
-module Term = struct
-  type var = string
-
-  type t =
-    | Var of var
-    | Int of int
-
-  let pp_var ppf s = Format.pp_print_string ppf s
-
-  let pp ppf = function
-    | Var s -> pp_var ppf s
-    | Int i -> Format.fprintf ppf "%d" i
-end
-
-module Expr = struct
-  type binop =
-    | Add
-    | Mul
-
-  type t =
-    | Term of Term.t
-    | BinApp of binop * t * t
-
-  let rec pp ppf = function
-    | Term t -> Term.pp ppf t
-    | BinApp (Add, t1, t2) -> Format.fprintf ppf "(%a + %a)" pp t1 pp t2
-    | BinApp (Mul, t1, t2) -> Format.fprintf ppf "(%a * %a)" pp t1 pp t2
-
-  let var s = Term (Term.Var s)
-  let int n = Term (Term.Int n)
-  let mul x y = BinApp (Mul, x, y)
-  let add x y = BinApp (Add, x, y)
-
-  let rec eval env = function
-    | Term (Int n) -> n
-    | Term (Var x) ->
-        begin match List.assoc_opt x env with
-          | None -> raise Not_found
-          | Some n -> n
-        end
-    | BinApp (Add, t1, t2) ->
-        let n1 = eval env t1 in
-        let n2 = eval env t2 in
-        n1 + n2
-    | BinApp (Mul, t1, t2) ->
-        let n1 = eval env t1 in
-        let n2 = eval env t2 in
-        n1 * n2
-end
-
-module Flatten = struct
-  (** Looks like three-address code *)
-  type t = Term.var * Expr.binop * Term.t * Term.t
-
-  let pp ppf (v, binop, t1, t2 : t) =
-    Format.fprintf ppf "%a = %a %s %a"
-      Term.pp_var v
-      Term.pp t1
-      (match binop with Expr.Add -> "+" | Mul -> "*")
-      Term.pp t2
-
-  let flatten (v, expr) : t list =
-    let cntr = ref 0 in
-    let mkvar () = incr cntr; Printf.sprintf "sym%d" !cntr in
-    let rec loop = function
-      | _v, Expr.Term _ -> assert false
-      | v, BinApp (binop, e1, e2) ->
-          let t1, fs1 = loop' e1 in
-          let t2, fs2 = loop' e2 in
-          (v, binop, t1, t2) :: fs1 @ fs2
-    and loop' e =
-      match e with
-      | Term t -> t, []
-      | e ->
-          let v = mkvar () in
-          Term.Var v, loop (v, e)
-    in
-    loop (v, expr)
-
-  let vars' acc (v1, _, t2, t3) =
-    let do_t t acc = match t with
-      | Term.Int _ -> acc
-      | Var v -> VarSet.add v acc
-    in
-    do_t (Var v1) @@ do_t t2 @@ do_t t3 acc
-
-  let vars fs =
-    List.fold_left (fun acc f -> vars' acc f) VarSet.empty fs
-
-  let eval_ env (op, t1, t2) =
-    let eval_t t =
-      match t with
-      | Term.Int i -> Some i
-      | Term.Var v ->
-          match List.assoc_opt v env with
-          | None -> None
-          | Some i -> Some i
-    in
-    match op, eval_t t1, eval_t t2 with
-    | Expr.Add, Some i1, Some i2 -> Some (i1 + i2)
-    | Expr.Mul, Some i1, Some i2 -> Some (i1 * i2)
-    | _ -> None
-
-  let eval env fs =
-    let vars = vars fs in
-    let unks =
-      List.fold_left (fun acc (v,_) ->
-          VarSet.remove v acc) vars env
-    in
-    let rec loop sol unks rev_fs fs =
-      if VarSet.is_empty unks then sol
-      else
-        match fs with
-        | [] -> assert false
-        | (v, op, t1, t2 as f)::fs ->
-            match eval_ sol (op, t1, t2) with
-            | Some i ->
-                loop ((v,i) :: sol) (VarSet.remove v unks) [] (List.rev_append rev_fs fs)
-            | None ->
-                loop sol unks (f::rev_fs) fs
-    in
-    loop env unks [] fs
-end
+open Expr
 
 module R1CS = struct
-  type row = (Term.var * int) list
+  type row = (Var.t * int) list
   type elem = { a : row; b : row; c : row }
   type t = { aa : row list; bb : row list; cc : row list }
 
@@ -159,7 +34,7 @@ module R1CS = struct
     let open Format in
     fprintf ppf "@[";
     pp_print_list ~pp_sep:(pp_list_sep ";@ ")
-      (fun ppf (v, i) -> fprintf ppf "%a = %d" Term.pp_var v i)
+      (fun ppf (v, i) -> fprintf ppf "%a = %d" Var.pp v i)
       ppf row;
     fprintf ppf "@]"
 
@@ -181,7 +56,7 @@ module R1CS = struct
 
   let of_term = function
     | Term.Var v -> [v, 1]
-    | Term.Int n -> [one, n]
+    | Int n -> [one, n]
 
   let add vis1 vis2 =
     let vs = List.sort_uniq compare @@ List.map fst vis1 @ List.map fst vis2 in
@@ -234,7 +109,7 @@ module R1CS = struct
     loop rows
 end
 
-module PQ = Polynomial.Make(Polynomial.Q)
+module PQ = Polynomial.Make(Q)
 
 module QAP = struct
   let of_R1CS_rows rows =
@@ -267,7 +142,7 @@ let test () =
   let rhs = let open Expr in add (add (mul (mul (var "x") (var "x")) (var "x")) (var "x")) (int 5) in
   assert (Expr.eval [("x", 3)] rhs = 35);
   let lhs = "~out" in
-  Format.eprintf "%a = %a@." Term.pp_var lhs Expr.pp rhs;
+  Format.eprintf "%a = %a@." Var.pp lhs Expr.pp rhs;
 
   prerr_endline "*** flatten";
   let fs = Flatten.flatten (lhs, rhs) in
@@ -275,11 +150,11 @@ let test () =
 
   prerr_endline "*** solution vector";
   let sol = Flatten.eval [("x",3)] fs in
-  List.iter (fun (v,n) -> Format.eprintf "%a : %d@." Term.pp_var v n) sol;
+  List.iter (fun (v,n) -> Format.eprintf "%a : %d@." Var.pp v n) sol;
   let sol = ("~one", 1) :: sol in
 
   prerr_endline "*** R1CS elems";
-  let vars = List.of_seq @@ VarSet.to_seq @@ Flatten.vars fs in
+  let vars = List.of_seq @@ Var.Set.to_seq @@ Flatten.vars fs in
   List.iter (fun f ->
       let res = R1CS.of_flatten vars f in
       Format.eprintf "%a@." Flatten.pp f;
@@ -347,5 +222,5 @@ let test () =
   in
   Format.eprintf "Z = %a@." PQ.pp z;
   let div, rem = PQ.div_rem t z in
-  Format.eprintf "T/Z = %a@." PQ.pp div;
+  Format.eprintf "H = T/Z = %a@." PQ.pp div;
   Format.eprintf "T mod Z = %a@." PQ.pp rem
