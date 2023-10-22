@@ -13,9 +13,8 @@ include Printable with type t := t
 
 val check : t -> row -> unit
 
-val of_flatten : Var.t list -> Var.t * Expr.binop * Term.t * Term.t -> elem
+val of_flatten : Var.t list -> Flatten.t -> elem
 
-val of_flatten_list :
-  Var.t list -> (Var.t * Expr.binop * Term.t * Term.t) list -> t
+val of_flatten_list : Var.t list -> Flatten.t list -> t
 
 val transpose : row list -> (Var.t * int list) list
