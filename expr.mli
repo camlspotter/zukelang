@@ -1,7 +1,7 @@
 open Utils
 
 module Term : sig
-  type term = Var of string | Int of int
+  type term = Var of Var.t | Int of int
 
   type t = term
 
@@ -25,26 +25,22 @@ module Expr : sig
 
   val add : t -> t -> t
 
-  val eval : (string * int) list -> t -> int
+  val eval : (Var.t * int) list -> t -> int
 end
 
 module Flatten : sig
-  type flatten = string * Expr.binop * Term.t * Term.t
+  type flatten = Var.t * Expr.binop * Term.t * Term.t
 
   type t = flatten
 
   include Printable with type t := t
 
-  val flatten : string * Expr.t -> t list
+  val flatten : Var.t * Expr.t -> t list
 
-  val vars' : Var.Set.t -> string * 'a * Term.t * Term.t -> Var.Set.t
-
-  val vars : (string * 'a * Term.t * Term.t) list -> Var.Set.t
-
-  val eval_ : (string * int) list -> Expr.binop * Term.t * Term.t -> int option
+  val vars : (Var.t * 'a * Term.t * Term.t) list -> Var.Set.t
 
   val eval :
-    (string * int) list ->
-    (string * Expr.binop * Term.t * Term.t) list ->
-    (string * int) list
+    (Var.t * int) list ->
+    (Var.t * Expr.binop * Term.t * Term.t) list ->
+    (Var.t * int) list
 end
