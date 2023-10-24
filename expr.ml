@@ -42,6 +42,14 @@ module Expr = struct
         let n1 = eval env t1 in
         let n2 = eval env t2 in
         n1 * n2
+
+  module Infix = struct
+    let (+) = add
+    let ( * ) = mul
+    let (!!) = int
+    let (??) = var
+  end
+
 end
 
 module Flatten = struct

@@ -2,40 +2,18 @@
 
 open Utils
 open Expr
+
 module PQ = Polynomial.Make (Q)
-
-module QAP = struct
-  let of_R1CS_rows rows =
-    let trans = R1CS.transpose rows in
-    (*
-    List.iter (fun (n, xs) ->
-        Format.(eprintf "@[%s: %a@]@."
-                  n
-                  (pp_print_list ~pp_sep:(pp_list_sep ";@ ") pp_print_int) xs))
-      trans;
-*)
-    let ps =
-      List.map
-        (fun (n, xs) ->
-          let xs = List.rev xs in
-          let xys = List.mapi (fun i x -> (Q.of_int (i + 1), Q.of_int x)) xs in
-          (n, PQ.interporate xys))
-        trans
-    in
-    (*
-    List.iter (fun (n,p) -> Format.eprintf "%s: %a@." n PQ.pp p) ps;
-*)
-    ps
-
-  let of_R1CS {R1CS.aa; bb; cc} =
-    (of_R1CS_rows aa, of_R1CS_rows bb, of_R1CS_rows cc)
-end
 
 let test () =
   let rhs =
+    (* x^3 + x + 5 *)
     let open Expr in
-    add (add (mul (mul (var "x") (var "x")) (var "x")) (var "x")) (int 5)
+    let open Expr.Infix in
+    let x = var "x" in
+    x * x * x + x + !!5
   in
+  (* x^3 + x + 5 = 35 when x = 3 *)
   assert (Expr.eval [(Var.of_string "x", 3)] rhs = 35) ;
   let lhs = Var.of_string "~out" in
   Format.eprintf "%a = %a@." Var.pp lhs Expr.pp rhs ;
@@ -46,8 +24,8 @@ let test () =
 
   prerr_endline "*** solution vector" ;
   let sol = Flatten.eval [(Var.of_string "x", 3)] fs in
-  List.iter (fun (v, n) -> Format.eprintf "%a : %d@." Var.pp v n) sol ;
   let sol = (Var.of_string "~one", 1) :: sol in
+  List.iter (fun (v, n) -> Format.eprintf "%a : %d@." Var.pp v n) sol ;
 
   prerr_endline "*** R1CS elems" ;
   let vars = List.of_seq @@ Var.Set.to_seq @@ Flatten.vars fs in
@@ -67,33 +45,11 @@ let test () =
 
   prerr_endline "*** QAP" ;
 
-  let qa, qb, qc = QAP.of_R1CS r1cs in
-  prerr_endline "QA" ;
-  let pp_q ppf (s, p) =
-    let xpxs =
-      List.map
-        (fun x -> (x, PQ.apply p x))
-        (List.init 4 (fun i -> Q.of_int (i + 1)))
-    in
-    Format.fprintf
-      ppf
-      "%a: %a | %a"
-      Var.pp
-      s
-      PQ.pp
-      p
-      (Format.pp_print_list ~pp_sep:(pp_list_sep " ") (fun ppf (x, px) ->
-           Format.fprintf ppf "p(%a)=%a" Q.pp_print x Q.pp_print px))
-      xpxs
-  in
-  List.iter (Format.eprintf "%a@." pp_q) qa ;
-  prerr_endline "QB" ;
-  List.iter (Format.eprintf "%a@." pp_q) qb ;
-  prerr_endline "QC" ;
-  List.iter (Format.eprintf "%a@." pp_q) qc ;
+  let QAP.{ a= qa; b= qb; c= qc } as qabc = QAP.of_R1CS r1cs in
+  Format.eprintf "%a@." QAP.pp qabc;
 
   let mul_sol qx =
-    (* qx . s *)
+    (* qx . sol *)
     List.fold_left PQ.add PQ.zero
     @@ List.map
          (fun (s, f) ->

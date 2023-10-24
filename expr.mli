@@ -26,6 +26,13 @@ module Expr : sig
   val add : t -> t -> t
 
   val eval : (Var.t * int) list -> t -> int
+
+  module Infix : sig
+    val ( + ) : t -> t -> t
+    val ( * ) : t -> t -> t
+    val ( !! ) : int -> t
+    val ( ?? ) : string -> t
+  end
 end
 
 module Flatten : sig

@@ -20,8 +20,10 @@ module Q = struct
   let pp = pp_print
 end
 
+type 'a printer = Format.formatter -> 'a -> unit
+
 module type Printable = sig
   type t
 
-  val pp : Format.formatter -> t -> unit
+  val pp : t printer
 end

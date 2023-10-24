@@ -1,7 +1,9 @@
 open Utils
 
-module Make (A : Field.S) : sig
-  type polynomial = A.t list
+module type S = sig
+  type f
+
+  type polynomial = f list
 
   type t = polynomial
 
@@ -9,26 +11,28 @@ module Make (A : Field.S) : sig
 
   val zero : 'a list
 
-  val one : A.t list
+  val one : f list
 
-  val gen : Random.State.t -> A.t list
+  val gen : Random.State.t -> f list
 
-  val apply : A.t list -> A.t -> A.t
+  val apply : f list -> f -> f
   (** Compute f(x) for the specified value of x *)
 
-  val normalize : A.t list -> A.t list
+  val normalize : f list -> f list
 
-  val add : A.t list -> A.t list -> A.t list
+  val add : f list -> f list -> f list
 
-  val mul_scalar : A.t -> A.t list -> A.t list
+  val mul_scalar : f -> f list -> f list
 
-  val neg : A.t list -> A.t list
+  val neg : f list -> f list
 
-  val mul : A.t list -> A.t list -> A.t list
+  val mul : f list -> f list -> f list
 
-  val div_rem : A.t list -> A.t list -> A.t list * A.t list
+  val div_rem : f list -> f list -> f list * f list
 
-  val lagrange_basis : A.t list -> A.t list list
+  val lagrange_basis : f list -> f list list
 
-  val interporate : (A.t * A.t) list -> A.t list
+  val interporate : (f * f) list -> f list
 end
+
+module Make (A : Field.S) : S with type f = A.t
