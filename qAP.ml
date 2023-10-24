@@ -6,7 +6,7 @@ module PQ = Polynomial.Make (Q)
 
 type q = Var.var * PQ.polynomial
 
-type t = { a : q list; b : q list; c : q list }
+type t = q list Abc.t
 
 let of_R1CS_rows rows : q list =
   let trans = R1CS.transpose rows in
@@ -30,8 +30,8 @@ let of_R1CS_rows rows : q list =
     *)
   ps
 
-let of_R1CS {R1CS.aa; bb; cc} : t =
-  { a= of_R1CS_rows aa; b= of_R1CS_rows bb; c= of_R1CS_rows cc }
+let of_R1CS Abc.{a; b; c} : t =
+  { a= of_R1CS_rows a; b= of_R1CS_rows b; c= of_R1CS_rows c }
 
 let pp_q ppf (s, p) =
   let open Format in
@@ -51,14 +51,10 @@ let pp_q ppf (s, p) =
          fprintf ppf "p(%a)=%a" Q.pp_print x Q.pp_print px))
     xpxs
 
-let pp ppf { a; b; c } =
+let pp =
   let pp_qs ppf qs =
     Format.fprintf ppf "@[<v>";
     List.iter (Format.fprintf ppf "%a;@," pp_q) qs ;
     Format.fprintf ppf "@]"
   in
-  Format.fprintf ppf "@[<v>";
-  Format.fprintf ppf "A: %a@," pp_qs a;
-  Format.fprintf ppf "B: %a@," pp_qs b;
-  Format.fprintf ppf "C: %a" pp_qs c;
-  Format.fprintf ppf "@]"
+  Abc.pp pp_qs

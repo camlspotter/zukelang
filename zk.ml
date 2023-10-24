@@ -45,10 +45,10 @@ let test () =
 
   prerr_endline "*** QAP" ;
 
-  let QAP.{ a= qa; b= qb; c= qc } as qabc = QAP.of_R1CS r1cs in
+  let Abc.{ a= qa; b= qb; c= qc } as qabc = QAP.of_R1CS r1cs in
   Format.eprintf "%a@." QAP.pp qabc;
 
-  let mul_sol qx =
+  let mul_sol (qx : QAP.q list) : PQ.t =
     (* qx . sol *)
     List.fold_left PQ.add PQ.zero
     @@ List.map

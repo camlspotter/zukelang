@@ -5,9 +5,9 @@ open Expr
 
 type row = (Var.t * int) list
 
-type elem = {a : row; b : row; c : row}
+type elem = row Abc.t
 
-type t = {aa : row list; bb : row list; cc : row list}
+type t = row list Abc.t
 
 let mul_row_vec row vec =
   List.fold_left
@@ -20,10 +20,10 @@ let mul_row_vec row vec =
     0
     row
 
-let check_elem {a; b; c} vec =
+let check_elem Abc.{a; b; c} vec =
   assert (mul_row_vec a vec * mul_row_vec b vec = mul_row_vec c vec)
 
-let check {aa; bb; cc} vec =
+let check Abc.{a=aa; b=bb; c=cc} vec =
   let rec loop aa bb cc =
     match (aa, bb, cc) with
     | [], [], [] -> ()
@@ -44,31 +44,11 @@ let pp_row ppf row =
     row ;
   fprintf ppf "@]"
 
-let pp_elem ppf {a; b; c} =
-  let open Format in
-  fprintf ppf "@[" ;
-  fprintf ppf "a: @[<h>%a@];@ " pp_row a ;
-  fprintf ppf "b: @[<h>%a@];@ " pp_row b ;
-  fprintf ppf "c: @[<h>%a@];@ " pp_row c ;
-  fprintf ppf "@]"
+let pp_elem = Abc.pp pp_row
 
-let pp ppf {aa; bb; cc} =
+let pp =
   let open Format in
-  fprintf
-    ppf
-    "A: @[<v>%a@];@."
-    (pp_print_list ~pp_sep:(pp_list_sep ";@ ") pp_row)
-    aa ;
-  fprintf
-    ppf
-    "B: @[<v>%a@];@."
-    (pp_print_list ~pp_sep:(pp_list_sep ";@ ") pp_row)
-    bb ;
-  fprintf
-    ppf
-    "C: @[<v>%a@];@."
-    (pp_print_list ~pp_sep:(pp_list_sep ";@ ") pp_row)
-    cc
+  Abc.pp (pp_print_list ~pp_sep:(pp_list_sep ";@ ") pp_row)
 
 let one = Var.of_string "~one"
 
@@ -80,6 +60,7 @@ let add vis1 vis2 =
   List.map (fun v -> (v, find v vis1 + find v vis2)) vs
 
 let of_flatten (v0, binop, t1, t2) =
+  let open Abc in
   match binop with
   | Expr.Mul ->
       let a = of_term t1 in
@@ -97,6 +78,7 @@ let normalize vars t =
   List.map (fun v -> (v, Option.value ~default:0 (List.assoc_opt v t))) vars
 
 let of_flatten vars f =
+  let open Abc in
   let {a; b; c} = of_flatten f in
   let a = normalize vars a in
   let b = normalize vars b in
@@ -104,11 +86,12 @@ let of_flatten vars f =
   {a; b; c}
 
 let of_flatten_list vars fs =
+  let open Abc in
   let elems = List.map (of_flatten vars) fs in
   let aa = List.map (fun elem -> elem.a) elems in
   let bb = List.map (fun elem -> elem.b) elems in
   let cc = List.map (fun elem -> elem.c) elems in
-  {aa; bb; cc}
+  {a=aa; b=bb; c=cc}
 
 let transpose (rows : row list) =
   let rec loop rows =

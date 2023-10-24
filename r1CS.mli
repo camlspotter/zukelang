@@ -3,11 +3,11 @@ open Expr
 
 type row = (Var.t * int) list
 
-type elem = {a : row; b : row; c : row}
+type elem = row Abc.t
 
 val pp_elem : Format.formatter -> elem -> unit
 
-type t = {aa : row list; bb : row list; cc : row list}
+type t = row list Abc.t
 
 include Printable with type t := t
 
