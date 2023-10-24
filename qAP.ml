@@ -10,28 +10,14 @@ type t = q list Abc.t
 
 let of_R1CS_rows rows : q list =
   let trans = R1CS.transpose rows in
-    (*
-    List.iter (fun (n, xs) ->
-        Format.(eprintf "@[%s: %a@]@."
-                  n
-                  (pp_print_list ~pp_sep:(pp_list_sep ";@ ") pp_print_int) xs))
-      trans;
-    *)
-  let ps =
-    List.map
-      (fun (n, xs) ->
-         let xs = List.rev xs in
-         let xys = List.mapi (fun i x -> (Q.of_int (i + 1), Q.of_int x)) xs in
-         (n, PQ.interporate xys))
-      trans
-  in
-    (*
-    List.iter (fun (n,p) -> Format.eprintf "%s: %a@." n PQ.pp p) ps;
-    *)
-  ps
+  List.map
+    (fun (n, xs) ->
+       let xs = List.rev xs in
+       let xys = List.mapi (fun i x -> (Q.of_int (i + 1), Q.of_int x)) xs in
+       (n, PQ.interporate xys))
+    trans
 
-let of_R1CS Abc.{a; b; c} : t =
-  { a= of_R1CS_rows a; b= of_R1CS_rows b; c= of_R1CS_rows c }
+let of_R1CS = Abc.map of_R1CS_rows
 
 let pp_q ppf (s, p) =
   let open Format in
@@ -58,3 +44,15 @@ let pp =
     Format.fprintf ppf "@]"
   in
   Abc.pp pp_qs
+
+let mul_sol_QAP_q_list (qx : q list) (sol : (Var.var * int) list) : PQ.t =
+    (* qx . sol *)
+    List.fold_left PQ.add PQ.zero
+    @@ List.map
+         (fun (s, f) ->
+           let x = List.assoc s sol in
+           PQ.mul_scalar (Q.of_int x) f)
+         qx
+
+let mul_sol t sol =
+  Abc.map (fun x -> mul_sol_QAP_q_list x sol) t

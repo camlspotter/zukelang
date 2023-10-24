@@ -77,21 +77,11 @@ let normalize vars t =
   let vars = one :: vars in
   List.map (fun v -> (v, Option.value ~default:0 (List.assoc_opt v t))) vars
 
-let of_flatten vars f =
-  let open Abc in
-  let {a; b; c} = of_flatten f in
-  let a = normalize vars a in
-  let b = normalize vars b in
-  let c = normalize vars c in
-  {a; b; c}
+let of_flatten vars f = Abc.map (normalize vars) @@ of_flatten f
 
 let of_flatten_list vars fs =
-  let open Abc in
   let elems = List.map (of_flatten vars) fs in
-  let aa = List.map (fun elem -> elem.a) elems in
-  let bb = List.map (fun elem -> elem.b) elems in
-  let cc = List.map (fun elem -> elem.c) elems in
-  {a=aa; b=bb; c=cc}
+  Abc.split elems
 
 let transpose (rows : row list) =
   let rec loop rows =
