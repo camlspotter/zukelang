@@ -1,13 +1,25 @@
+(** Quadratic Arithmetic Program *)
+
 open Utils
 
-module PQ : Polynomial.S with type f = Q.t
+type 'f q = Var.t * 'f Polynomial.t
 
-type q = Var.t * PQ.t
+(* Pinnocio paper says QAP is this triple and a polynomial t(x),
+   but here we only take the triple *)
+type 'f t = 'f q list Abc.t
 
-type t = q list Abc.t
+module Make(F : Field.S) : sig
+  module Poly : Polynomial.S with type f = F.t
 
-include Printable with type t := t
+  type nonrec q = F.t q
 
-val of_R1CS : R1CS.t -> t
+  type nonrec t = F.t t
 
-val mul_sol : t -> (Var.var * int) list -> PQ.polynomial Abc.t
+  include Printable with type t := t
+
+  val of_R1CS : R1CS.t -> t
+
+  val mul_sol : t -> (Var.var * int) list -> Poly.t Abc.t
+end
+
+val conv : ('a -> 'b) -> 'a t -> 'b t

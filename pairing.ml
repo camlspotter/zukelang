@@ -1,5 +1,7 @@
 (* Learning Bls12-381 *)
 
+open Utils
+
 module Bls12_381 = struct
   (* extend Bls12_381 with some printers *)
   include Bls12_381
@@ -31,30 +33,31 @@ let state = Random.State.make [||]
 (* https://medium.com/@VitalikButerin/exploring-elliptic-curve-pairings-c73c1864e627 *)
 let test_pairing () =
   let open Bls12_381 in
-  Format.eprintf "#Fr: %a@." Z.pp_print Fr.order ;
+  let open Format in
+  ef "#Fr: %a@." Z.pp_print Fr.order ;
   (* Fq12 is NOT Fq.  It is much much larger than Fq.
      Fq is hidden in Bls12-381.
   *)
-  Format.eprintf "#Fq12: %a@." Z.pp_print Fq12.order ;
+  ef "#Fq12: %a@." Z.pp_print Fq12.order ;
   (* G1 : curve built over the field [Fq]
      I believe Bls12_381 does NOT provide a way to decode a G1 point to Fq.t * Fq.t
      Bytes encoding of G1 point is in little endian.
   *)
-  Format.eprintf "G1.zero: %a@." G1.pp G1.zero ;
-  Format.eprintf "G1.one: %a@." G1.pp G1.one ;
+  ef "G1.zero: %a@." G1.pp G1.zero ;
+  ef "G1.one: %a@." G1.pp G1.one ;
   (* val G1.mul : G1.t -> Fr.t -> G1.t *)
   let g1_123 = G1.(mul one (Fr.of_z (Z.of_int 123))) in
-  Format.eprintf "G1.123: %a@." G1.pp g1_123 ;
+  ef "G1.123: %a@." G1.pp g1_123 ;
   (* G2 : curve built over the field [Fq^2]
      I believe Bls12_381 does NOT provide a way to decode a G1 point to Fq.t * Fq.t
      Bytes encoding of G2 point is in little endian.
   *)
-  Format.eprintf "G2.zero: %a@." G2.pp G2.zero ;
-  Format.eprintf "G2.one: %a@." G2.pp G2.one ;
+  ef "G2.zero: %a@." G2.pp G2.zero ;
+  ef "G2.one: %a@." G2.pp G2.one ;
 
   (* k : toxic waste.  It must not be known to ANYONE *)
   let k = Fr.random ~state () in
-  Format.eprintf "k: %a@." Fr.pp k ;
+  ef "k: %a@." Fr.pp k ;
 
   (* P and Q are open *)
   let (_P : G1.t), (_Q : G2.t) =

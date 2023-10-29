@@ -36,19 +36,23 @@ let check Abc.{a=aa; b=bb; c=cc} vec =
 
 let pp_row ppf row =
   let open Format in
-  fprintf ppf "@[" ;
-  pp_print_list
-    ~pp_sep:(pp_list_sep ";@ ")
-    (fun ppf (v, i) -> fprintf ppf "%a = %d" Var.pp v i)
+  f ppf "@[" ;
+  list ";@ " (fun ppf (v, i) -> fprintf ppf "%a = %d" Var.pp v i)
     ppf
     row ;
-  fprintf ppf "@]"
+  f ppf "@]"
 
 let pp_elem = Abc.pp pp_row
 
 let pp =
   let open Format in
-  Abc.pp (pp_print_list ~pp_sep:(pp_list_sep ";@ ") pp_row)
+  Abc.pp (fun ppf rows ->
+      let len = List.length rows in
+      let nrows = List.mapi (fun i row -> (len - i, row)) rows in
+      list ";@ "
+        (fun ppf (i, row) ->
+           f ppf "#%d : %a" i pp_row row)
+        ppf nrows)
 
 let one = Var.of_string "~one"
 

@@ -1,38 +1,59 @@
 open Utils
 
+type 'f polynomial = 'f list
+
+type 'f t = 'f polynomial
+
 module type S = sig
   type f
 
-  type polynomial = f list
+  type nonrec polynomial = f polynomial
 
   type t = polynomial
 
   include Printable with type t := t
 
-  val zero : 'a list
+  val zero : t
 
-  val one : f list
+  val one : t
 
-  val gen : Random.State.t -> f list
+  val gen : Random.State.t -> t
 
-  val apply : f list -> f -> f
+  val apply : t -> f -> f
   (** Compute f(x) for the specified value of x *)
 
-  val normalize : f list -> f list
+  val normalize : t -> t
 
-  val add : f list -> f list -> f list
+  val add : t -> t -> t
 
-  val mul_scalar : f -> f list -> f list
+  val sum : t list -> t
 
-  val neg : f list -> f list
+  val mul_scalar : f -> t -> t
 
-  val mul : f list -> f list -> f list
+  val neg : t -> t
 
-  val div_rem : f list -> f list -> f list * f list
+  val mul : t -> t -> t
 
-  val lagrange_basis : f list -> f list list
+  val div_rem : t -> t -> t * t
 
-  val interporate : (f * f) list -> f list
+  val lagrange_basis : f list -> t list
+
+  val interpolate : (f * f) list -> t
+
+  val z : f list -> t
+
+  val degree : t -> int
+
+  val is_zero : t -> bool
+
+  module Infix : sig
+    val ( + ) : t -> t -> t
+    val ( - ) : t -> t -> t
+    val ( ~- ) : t -> t
+    val ( * ) : t -> t -> t
+    val ( *$ ) : f -> t -> t
+    val ( /% ) : t -> t -> t * t
+  end
 end
 
 module Make (A : Field.S) : S with type f = A.t = struct
@@ -51,12 +72,11 @@ module Make (A : Field.S) : S with type f = A.t = struct
     match p with
     | [] -> A.pp ppf A.zero
     | _ ->
-        pp_print_list
-          ~pp_sep:(pp_list_sep " + ")
+        list " + "
           (fun ppf (i, p) ->
-            if i = 0 then fprintf ppf "%a" A.pp p
-            else if i = 1 then fprintf ppf "%a x" A.pp p
-            else fprintf ppf "%a x^%d" A.pp p i)
+            if i = 0 then A.pp ppf p
+            else if i = 1 then f ppf "%a x" A.pp p
+            else f ppf "%a x^%d" A.pp p i)
           ppf
         @@ List.mapi (fun i a -> (i, a)) p
 
@@ -91,6 +111,8 @@ module Make (A : Field.S) : S with type f = A.t = struct
 
   let add p1 p2 = normalize @@ add p1 p2
 
+  let sum = List.fold_left add zero
+
   let mul_scalar n p =
     if A.equal n A.zero then [] else List.map A.(fun m -> n * m) p
 
@@ -103,13 +125,13 @@ module Make (A : Field.S) : S with type f = A.t = struct
           List.rev_append (List.init i (fun _ -> A.zero)) @@ mul_scalar a p2)
         p1
     in
-    List.fold_left add zero ps
+    sum ps
 
   (* 1 + x + x^2  *  1 + x + x^2 + x^3
      = 1 + 2x + 3x^2 + 3x^3 + 2x^4 + x^5 *)
   let test_mul () =
     let p = mul [A.one; A.one; A.one] [A.one; A.one; A.one; A.one] in
-    Format.eprintf "test_mul: %a@." pp p ;
+    Format.ef "test_mul: %a@." pp p ;
     let q = A.of_int in
     assert (p = [q 1; q 2; q 3; q 3; q 2; q 1])
 
@@ -154,15 +176,16 @@ module Make (A : Field.S) : S with type f = A.t = struct
            A.(of_int x / of_int y))
 
   let test_div_rem () =
+    let open Format in
     let q = A.of_int in
     let d, r = div_rem [q 1; q 2; q 1] [q 1; q 1] in
     prerr_endline "test_div_rem" ;
-    Format.eprintf "div %a@." pp d ;
-    Format.eprintf "rem %a@." pp r ;
+    ef "div %a@." pp d ;
+    ef "rem %a@." pp r ;
     let d, r = div_rem [q 1; q 1] [q 1; q 2; q 1] in
     prerr_endline "test_div_rem" ;
-    Format.eprintf "div %a@." pp d ;
-    Format.eprintf "rem %a@." pp r ;
+    ef "div %a@." pp d ;
+    ef "rem %a@." pp r ;
     let test rng =
       let a = gen rng in
       let b = gen rng in
@@ -171,10 +194,10 @@ module Make (A : Field.S) : S with type f = A.t = struct
         assert (List.length r < List.length b) ;
         if not (add (mul d b) r = a) then (
           prerr_endline "test_div_rem random test fails" ;
-          Format.eprintf "a: %a@." pp a ;
-          Format.eprintf "b: %a@." pp b ;
-          Format.eprintf "d: %a@." pp d ;
-          Format.eprintf "r: %a@." pp r ;
+          ef "a: %a@." pp a ;
+          ef "b: %a@." pp b ;
+          ef "d: %a@." pp d ;
+          ef "r: %a@." pp r ;
           assert false))
     in
     let rng = Random.State.make_self_init () in
@@ -184,7 +207,7 @@ module Make (A : Field.S) : S with type f = A.t = struct
     ()
 
   (* Lagrange base polynomials l_j(x) for j = 1 to #xs *)
-  let lagrange_basis xs =
+  let lagrange_basis (xs : f list) : t list =
     let rec f sx = function
       | [] -> []
       | xj :: xs ->
@@ -194,31 +217,58 @@ module Make (A : Field.S) : S with type f = A.t = struct
                  let xj_xi = xj - xi in
                  assert (not @@ equal xj_xi zero) ;
                  [~-xi / xj_xi; one / xj_xi]
-                 (* -xi + x *))
+                 (* (x - xi) / (xj - xi) *))
           @@ List.rev_append sx xs)
           :: f (xj :: sx) xs
     in
     f [] xs
 
-  let interporate xys =
+  let interpolate (xys : (f * f) list) : t =
     let ls = lagrange_basis @@ List.map fst xys in
-    List.fold_left add zero @@ List.map2 (fun (_, y) l -> mul_scalar y l) xys ls
+    sum @@ List.map2 (fun (_, y) l -> mul_scalar y l) xys ls
 
-  let test_interporate () =
+  let test_interpolate () =
+    let open Format in
     let q = A.of_int in
     let test xys =
       let xys = List.map (fun (x, y) -> (q x, q y)) xys in
-      let f = interporate xys in
-      Format.eprintf "%a@." pp f ;
+      let f = interpolate xys in
+      ef "%a@." pp f ;
       List.iter (fun (x, y) -> assert (A.equal (apply f x) y)) xys
     in
     test [(0, 1); (1, 2)] ;
     test [(0, 10); (3, 9)] ;
     test [(1, 3); (2, 2); (3, 4)]
 
+  let test_normalize () =
+    assert (normalize [A.zero] = zero)
+
+  let z fs : t =
+    let q = A.of_int in
+    List.fold_left mul one
+    @@ List.map (fun f -> [A.(~-) f; q 1] (* x - f *)) fs
+
+  let degree t =
+    let len = List.length (normalize t) in
+    if len = 0 then 0 else len - 1
+
+  let is_zero t = normalize t = zero
+
+  module Infix = struct
+    let (+) = add
+    let (-) x y = add x (neg y)
+    let (~-) = neg
+    let ( * ) = mul
+    let ( *$ ) = mul_scalar
+    let (/%) = div_rem
+  end
+
   let () =
     test_apply () ;
     test_mul () ;
-    test_interporate () ;
-    test_div_rem ()
+    test_interpolate () ;
+    test_div_rem () ;
+    test_normalize ()
 end
+
+let conv f = List.map f

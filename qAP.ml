@@ -2,57 +2,61 @@
 
 open Utils
 
-module PQ = Polynomial.Make (Q)
+type 'f q = Var.t * 'f Polynomial.t
 
-type q = Var.var * PQ.polynomial
+type 'f t = 'f q list Abc.t
 
-type t = q list Abc.t
+module Make(F : Field.S) = struct
+  module Poly = Polynomial.Make(F)
 
-let of_R1CS_rows rows : q list =
-  let trans = R1CS.transpose rows in
-  List.map
-    (fun (n, xs) ->
-       let xs = List.rev xs in
-       let xys = List.mapi (fun i x -> (Q.of_int (i + 1), Q.of_int x)) xs in
-       (n, PQ.interporate xys))
-    trans
+  type nonrec q = F.t q
 
-let of_R1CS = Abc.map of_R1CS_rows
+  type t = q list Abc.t
 
-let pp_q ppf (s, p) =
-  let open Format in
-  let xpxs =
+  let of_R1CS_rows rows : q list =
+    let trans = R1CS.transpose rows in
     List.map
-      (fun x -> (x, PQ.apply p x))
-      (List.init 4 (fun i -> Q.of_int (i + 1)))
-  in
-  fprintf
-    ppf
-    "%a: %a | %a"
-    Var.pp
-    s
-    PQ.pp
-    p
-    (pp_print_list ~pp_sep:(pp_list_sep " ") (fun ppf (x, px) ->
-         fprintf ppf "p(%a)=%a" Q.pp_print x Q.pp_print px))
-    xpxs
+      (fun (n, xs) ->
+         let xs = List.rev xs in
+         let xys = List.mapi (fun i x -> (F.of_int (i + 1), F.of_int x)) xs in
+         (n, Poly.interpolate xys))
+      trans
 
-let pp =
-  let pp_qs ppf qs =
-    Format.fprintf ppf "@[<v>";
-    List.iter (Format.fprintf ppf "%a;@," pp_q) qs ;
-    Format.fprintf ppf "@]"
-  in
-  Abc.pp pp_qs
+  let of_R1CS = Abc.map of_R1CS_rows
 
-let mul_sol_QAP_q_list (qx : q list) (sol : (Var.var * int) list) : PQ.t =
+  let pp_q ppf (s, p) =
+    let open Format in
+    let xpxs =
+      List.map
+        (fun x -> (x, Poly.apply p x))
+        (List.init 4 (fun i -> F.of_int (i + 1)))
+    in
+    f ppf
+      "%a: %a | %a"
+      Var.pp s
+      Poly.pp p
+      (list " " (fun ppf (x, px) ->
+           f ppf "p(%a)=%a" F.pp x F.pp px)) xpxs
+
+  let pp =
+    let open Format in
+    let pp_qs ppf qs =
+      f ppf "@[<v>";
+      List.iter (Format.fprintf ppf "%a;@," pp_q) qs ;
+      f ppf "@]"
+    in
+    Abc.pp pp_qs
+
+  let mul_sol_q_list (qx : q list) (sol : (Var.var * int) list) : Poly.t =
     (* qx . sol *)
-    List.fold_left PQ.add PQ.zero
+    Poly.sum
     @@ List.map
-         (fun (s, f) ->
-           let x = List.assoc s sol in
-           PQ.mul_scalar (Q.of_int x) f)
-         qx
+      (fun (s, f) ->
+         let x = List.assoc s sol in
+         Poly.mul_scalar (F.of_int x) f)
+      qx
 
-let mul_sol t sol =
-  Abc.map (fun x -> mul_sol_QAP_q_list x sol) t
+  let mul_sol t sol = Abc.map (fun x -> mul_sol_q_list x sol) t
+end
+
+let conv f = Abc.map (List.map (fun (v, p) -> v, Polynomial.conv f p))

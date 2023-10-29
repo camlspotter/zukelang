@@ -7,7 +7,7 @@ module Term = struct
 
   let pp ppf = function
     | Var s -> Var.pp ppf s
-    | Int i -> Format.fprintf ppf "%d" i
+    | Int i -> Format.int ppf i
 end
 
 module Expr = struct
@@ -62,19 +62,16 @@ module Flatten = struct
     Format.fprintf
       ppf
       "%a = %a %s %a"
-      Var.pp
-      v
-      Term.pp
-      t1
+      Var.pp v
+      Term.pp t1
       (match binop with Expr.Add -> "+" | Mul -> "*")
-      Term.pp
-      t2
+      Term.pp t2
 
   let flatten (v, expr) : t list =
     let cntr = ref 0 in
-    let mkvar () =
+    let mk_mid_var () =
       incr cntr ;
-      Var.of_string @@ Printf.sprintf "sym%d" !cntr
+      Var.of_string @@ Printf.sprintf "_sym%d" !cntr
     in
     let rec loop = function
       | _v, Expr.Term _ -> assert false
@@ -86,7 +83,7 @@ module Flatten = struct
       match e with
       | Term t -> (t, [])
       | e ->
-          let v = mkvar () in
+          let v = mk_mid_var () in
           (Term.Var v, loop (v, e))
     in
     loop (v, expr)
