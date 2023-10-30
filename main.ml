@@ -4,6 +4,6 @@ let () = Pairing.test ()
 
 let () = Zk.test2 ()
 
-let () = Gate.test ()
+let () = Circuit.test ()
 
-let () = Pinoccio.test ()
+let () = Pinocchio.test ()

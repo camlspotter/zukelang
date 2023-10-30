@@ -17,3 +17,14 @@ module Set = Set.Make (struct
 
   let compare = compare
 end)
+
+module Map = struct
+  include Map.Make (struct
+      type nonrec t = t
+
+      let compare = compare
+    end)
+
+  let of_set s f =
+    of_seq (Seq.map (fun v -> v, f v) (Set.to_seq s))
+end

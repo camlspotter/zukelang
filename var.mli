@@ -13,3 +13,8 @@ val of_string : string -> var
 val to_string : var -> string
 
 module Set : Set.S with type elt = t
+
+module Map : sig
+  include Map.S with type key = t
+  val of_set : Set.t -> (var -> 'a) -> 'a t
+end
