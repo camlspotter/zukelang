@@ -33,7 +33,7 @@ type gates = Gate.t Var.Map.t
 
 let pp_gates ppf (gates : gates) =
   let open Format in
-  list "@,"
+  list ",@ "
     (fun ppf (v,g) ->
        f ppf "%a = %a" Var.pp v Gate.pp g) ppf
   @@ Var.Map.bindings gates
@@ -47,7 +47,7 @@ type t = circuit
 
 let pp ppf t =
   let open Format in
-  f ppf "{ @[<v>gates= @[%a@];@ mids= @[%a@]@] }"
+  f ppf "{ @[<v>gates= @[<v>%a@];@ mids= @[%a@]@] }"
     pp_gates t.gates
     (list ", " Var.pp) (Var.Set.elements t.mids)
 
