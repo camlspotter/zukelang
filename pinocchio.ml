@@ -700,22 +700,14 @@ module Make(C : CURVE) = struct
       let bvwy' (* $g_v^{\beta (v_{mid}(s) + \delta_v t(s))} g_w^{\beta (w_{mid}(s) + \delta_w t(s))} g_y^{\beta (y_{mid}(s) + \delta_y t(s))}$ *) =
         G1.(bvwy + ekey.vbt * dv + ekey.wbt * dw + ekey.ybt * dy)
       in
-      ignore v';
-      ignore w';
-      ignore y';
-      ignore h';
-      ignore av';
-      ignore aw';
-      ignore ay';
-      ignore bvwy';
-      { v = v;
-        w = w;
-        y = y;
-        h = h;
-        av = av;
-        aw  = aw;
-        ay = ay;
-        bvwy = bvwy;
+      { v = v';
+        w = w';
+        y = y';
+        h = h';
+        av = av';
+        aw  = aw';
+        ay = ay';
+        bvwy = bvwy';
       }
 
   end
