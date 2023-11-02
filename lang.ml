@@ -51,7 +51,7 @@ module Make(F : Field.S) = struct
       let rec eval env = function
         | Term (Num n) -> n
         | Term (Var x) -> (
-            match List.assoc_opt x env with None -> raise Not_found | Some n -> n)
+            match Var.Map.find_opt x env with None -> raise Not_found | Some n -> n)
         | BinApp (Add, t1, t2) ->
             let n1 = eval env t1 in
             let n2 = eval env t2 in
@@ -116,7 +116,7 @@ module Make(F : Field.S) = struct
           match t with
           | Term.Num i -> Some i
           | Term.Var v -> (
-              match List.assoc_opt v env with None -> None | Some i -> Some i)
+              match Var.Map.find_opt v env with None -> None | Some i -> Some i)
         in
         match (op, eval_t t1, eval_t t2) with
         | Add, Some i1, Some i2 -> Some (i1 + i2)
@@ -126,7 +126,7 @@ module Make(F : Field.S) = struct
       let eval env fs =
         let vars = vars fs in
         let unks =
-          List.fold_left (fun acc (v, _) -> Var.Set.remove v acc) vars env
+          Var.Map.fold (fun v _ acc -> Var.Set.remove v acc) env vars
         in
         let rec loop sol unks rev_fs fs =
           if Var.Set.is_empty unks then sol
@@ -137,7 +137,7 @@ module Make(F : Field.S) = struct
                 match eval_ sol (op, t1, t2) with
                 | Some i ->
                     loop
-                      ((v, i) :: sol)
+                      (Var.Map.add v i sol)
                       (Var.Set.remove v unks)
                       []
                       (List.rev_append rev_fs fs)

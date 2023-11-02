@@ -400,11 +400,9 @@ module Make(C : CURVE) = struct
          $= e (g_y^{p(s)},~ g)$
 
       *)
-      assert (
-        e G1.(vio + proof.vv) G2.(wio + proof.ww)
-        - e G1.(yio + proof.yy) vkey.one2
-        = e proof.h vkey.yt
-        )
+      e G1.(vio + proof.vv) G2.(wio + proof.ww)
+      - e G1.(yio + proof.yy) vkey.one2
+      = e proof.h vkey.yt
   end
 
   module ZKCompute = struct
@@ -499,17 +497,65 @@ module Make(C : CURVE) = struct
         yayy = yayy';
         bvwy = bvwy';
       }
+  end
 
+  module Test = struct
+
+    let prepare e =
+      let circuit = Circuit.of_expr e in
+      let qap, rk = QAP.build circuit.gates in
+
+      (* decompilation test *)
+      let gates = QAP.decompile qap rk in
+      assert (Circuit.equal_gates circuit.gates gates);
+
+      let ekey, vkey =
+        let rng = Random.State.make_self_init () in
+        KeyGen.generate rng circuit qap
+      in
+      circuit, qap, ekey, vkey
+
+    let prove (circuit : Circuit.t) qap ekey input =
+      let sol = Result.get_ok @@ Circuit.eval input circuit.gates in
+      Format.(ef "@[<v>%a@]@." (list "@," (fun ppf (v,i) -> f ppf "%a = %a" Var.pp v Fr.pp i)) sol);
+      let _p, h = QAP.eval sol qap in
+      Compute.f ekey (Var.Map.of_list sol) h
+
+    let verify _circuit input output vkey proof =
+      (* let ios = Circuit.ios circuit in *)
+      (* assert (Var.Set.equal ios (Var.Set.of_list [x; Circuit.one; Circuit.out])); *)
+      Verify.f vkey (Var.Map.of_list (input @ output)) proof
+
+    let zkprepare e secret_input =
+      let circuit = Circuit.of_expr e in
+      let qap, _rk = QAP.build circuit.gates in
+      let circuit =
+        { circuit
+          with mids =
+                 List.fold_left (fun acc x -> Var.Set.add x acc) circuit.mids secret_input }
+      in
+      let ekey, vkey =
+        let rng = Random.State.make_self_init () in
+        KeyGen.generate rng circuit qap
+      in
+      circuit, qap, ekey, vkey
+
+    let zkprove (circuit : Circuit.t) qap ekey input =
+      let rng = Random.State.make_self_init () in
+      let sol = Result.get_ok @@ Circuit.eval input circuit.gates in
+      let _p, h = QAP.eval sol qap in
+      ZKCompute.f rng qap.target ekey (Var.Map.of_list sol) h
   end
 end
 
-let protocol_test () =
+let test () =
   prerr_endline "PROTOCOL TEST";
-  let rng = Random.State.make_self_init () in
 
   let module C = Ecp.Bls12_381 in
   let module Fr = C.Fr in
   let module Lang = Lang.Make(Fr) in
+  let module P = Make(C) in
+  let open P in
 
   let x = Var.of_string "i" in
   let e =
@@ -519,71 +565,24 @@ let protocol_test () =
     x * x * x + x * !!!2 + !!!3
   in
 
-  let module P = Make(C) in
-  let open P in
+  let circuit, qap, ekey, vkey = Test.prepare e in
 
-  let prepare e =
-    let circuit = Circuit.of_expr e in
-    let qap, rk = QAP.build circuit.gates in
-    prerr_endline "decompile";
-    let gates = QAP.decompile qap rk in
-    let gates : Circuit.Gate.t Var.Map.t = Var.Map.of_list gates in
-    assert (Var.Map.equal (fun (l1, r1) (l2, r2) ->
-        let l1 = List.sort compare l1 in
-        let r1 = List.sort compare r1 in
-        let l2 = List.sort compare l2 in
-        let r2 = List.sort compare r2 in
-        (l1, r1) = (l2, r2)) circuit.gates gates);
-    circuit, qap
-  in
+  let input = [x, Fr.of_int 10; Circuit.one, Fr.of_int 1] in
 
-  let circuit, qap = prepare e in
-  let ekey, vkey = P.KeyGen.generate rng circuit qap in
-  let proof =
-    let sol =
-      Result.get_ok @@ Circuit.eval [x, Fr.of_int 10; Circuit.one, Fr.of_int 1] circuit.gates in
-    Format.(ef "@[<v>%a@]@." (list "@," (fun ppf (v,i) -> f ppf "%a = %a" Var.pp v Fr.pp i)) sol);
-    let _p, h = QAP.eval sol qap in
-    Compute.f ekey (Var.Map.of_list sol) h
-  in
-  let () =
-    let ios = Circuit.ios circuit in
-    assert (Var.Set.equal ios (Var.Set.of_list [x; Circuit.one; Circuit.out]));
-    let input = [x, 10; Circuit.one, 1] in
-    let output = [Circuit.out, 1023] in
-    Verify.f vkey (Var.Map.of_seq @@ Seq.map (fun (v,i) -> v, Fr.of_int i) @@ List.to_seq (input @ output)) proof
-  in
+  let proof = Test.prove circuit qap ekey input in
+
+  assert (Test.verify circuit input [Circuit.out, Fr.of_int 1023] vkey proof);
 
   prerr_endline "Veryfying with wrong out";
-  let () =
-    let ios = Circuit.ios circuit in
-    assert (Var.Set.equal ios (Var.Set.of_list [x; Circuit.one; Circuit.out]));
-    let input = [x, 10; Circuit.one, 1] in
-    let output = [Circuit.out, 42] in
-    try
-      Verify.f vkey (Var.Map.of_seq @@ Seq.map (fun (v,i) -> v, Fr.of_int i) @@ List.to_seq (input @ output)) proof;
-      raise (Failure "Wot?")
-    with
-    | Assert_failure _ -> ()
-  in
+  assert (not @@ Test.verify circuit input [Circuit.out, Fr.of_int 42] vkey proof);
 
   prerr_endline "VC done!";
 
-  let zcircuit = { circuit with mids = Var.Set.add x circuit.mids } in
-  let ekey, vkey = KeyGen.generate rng zcircuit qap in
-  let zkproof =
-    let sol = Result.get_ok @@ Circuit.eval [x, Fr.of_int 10; Circuit.one, Fr.of_int 1] circuit.gates in
-    let _p, h = QAP.eval sol qap in
-    (* hide x *)
-    ZKCompute.f rng qap.target ekey (Var.Map.of_list sol) h
-  in
-  let () =
-    let ios = Circuit.ios zcircuit in
-    assert (Var.Set.equal ios (Var.Set.of_list [Circuit.one; Circuit.out]));
-    let input = [Circuit.one, 1] in
-    let output = [Circuit.out, 1023] in
-    Verify.f vkey (Var.Map.of_seq @@ Seq.map (fun (v,i) -> v, Fr.of_int i) @@ List.to_seq (input @ output)) zkproof
-  in
-  prerr_endline "PROTOCOL TEST done!"
+  let zkcircuit, qap, ekey, vkey = Test.zkprepare e [x] in
 
-let test () = protocol_test ()
+  let zkproof = Test.zkprove zkcircuit qap ekey input in
+
+  assert (Test.verify zkcircuit [Circuit.one, Fr.of_int 1] [Circuit.out, Fr.of_int 1023] vkey zkproof);
+  assert (not @@ Test.verify zkcircuit [Circuit.one, Fr.of_int 1] [Circuit.out, Fr.of_int 42] vkey zkproof);
+
+  prerr_endline "PROTOCOL TEST done!"

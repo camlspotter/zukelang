@@ -104,6 +104,7 @@ module Make(F : Field.S) = struct
     assert (Var.Set.equal domv domw);
     assert (Var.Set.equal domv domy);
     Format.(ef "dom: @[%a@]@." (list ",@ " Var.pp) (Var.Set.elements domv));
+    Var.Map.of_list @@
     Var.Map.fold (fun g r acc ->
         let f v =
           List.filter_map (fun (v, p) ->

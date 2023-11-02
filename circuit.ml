@@ -40,6 +40,14 @@ module Make(F : Field.S) = struct
 
   type gates = Gate.t Var.Map.t
 
+  let equal_gates gs1 gs2 =
+    Var.Map.equal (fun (l1, r1) (l2, r2) ->
+        let l1 = List.sort compare l1 in
+        let r1 = List.sort compare r1 in
+        let l2 = List.sort compare l2 in
+        let r2 = List.sort compare r2 in
+        (l1, r1) = (l2, r2)) gs1 gs2
+
   let pp_gates ppf (gates : gates) =
     let open Format in
     list ",@ "

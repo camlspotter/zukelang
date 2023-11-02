@@ -20,7 +20,6 @@ module type S = sig
   val gen : t Gen.t
 
   val apply : t -> f -> f
-  (** Compute f(x) for the specified value of x *)
 
   val normalize : t -> t
 

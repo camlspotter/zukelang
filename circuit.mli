@@ -19,6 +19,8 @@ module Make(F : Field.S) : sig
       mids : Var.Set.t
     }
 
+  val equal_gates : Gate.t Var.Map.t -> Gate.t Var.Map.t -> bool
+
   type t = circuit
 
   val pp : t printer

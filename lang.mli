@@ -32,7 +32,7 @@ module Make(F : Field.S) : sig
       val ( ?? ) : string -> t
     end
 
-    val eval : (Var.t * F.t) list -> t -> F.t
+    val eval : F.t Var.Map.t -> t -> F.t
   end
 
   module Flatten : sig
@@ -47,6 +47,6 @@ module Make(F : Field.S) : sig
 
     val vars : t list -> Var.Set.t
 
-    val eval : (Var.t * F.t) list -> t list -> (Var.t * F.t) list
+    val eval : F.t Var.Map.t -> t list -> F.t Var.Map.t
   end
 end
