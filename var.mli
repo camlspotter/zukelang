@@ -6,7 +6,7 @@ type t = var
 
 val compare : t -> t -> int
 
-include Printable with type t := t
+val pp : t printer
 
 val of_string : string -> var
 
@@ -20,5 +20,10 @@ end
 module Map : sig
   include Map.S with type key = t
   val of_set : Set.t -> (var -> 'a) -> 'a t
+  val of_list : (var * 'a) list -> 'a t
   val domain : _ t -> Set.t
+end
+
+module Infix : sig
+  val (#!) : 'a Map.t -> t -> 'a
 end

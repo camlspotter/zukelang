@@ -63,8 +63,6 @@ module Q = struct
   let pp = pp_print
 end
 
-module type Printable = sig
-  type t
-
-  val pp : t printer
+module Gen = struct
+  type 'a t = Random.State.t -> 'a
 end

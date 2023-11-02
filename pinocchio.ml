@@ -4,239 +4,37 @@
 *)
 
 open Utils
-
-type 'a vwy = { v : 'a; w : 'a; y : 'a }
-
-let (#!) l k =
-  match Var.Map.find_opt k l with
-  | Some res -> res
-  | None ->
-      Format.ef "Variable %a not found@." Var.pp k;
-      assert false
+open Var.Infix (* for (#!) *)
 
 module type CURVE = sig
   module Fr : sig
     include Field.S
-
     val ( ** ) : t -> Z.t -> t
-
-    val gen : Random.State.t -> t
+    val gen : t Gen.t
   end
-
-  module type G = sig
-    type t
-
-    val zero : t
-
-    val one : t
-
-    val ( ~- ) : t -> t
-    val ( + ) : t -> t -> t
-    val ( - ) : t -> t -> t
-    val ( * ) : t -> Fr.t -> t
-    val sum : t list -> t
-
-    val ( = ) : t -> t -> bool
-
-    val of_Fr : Fr.t -> t
-
-    val pp : t printer
-  end
-
-  module G1 : G
-
-  module G2 : G
-
-  module GT : G
-
+  module G1 : Ecp.G with type fr := Fr.t
+  module G2 : Ecp.G with type fr := Fr.t
+  module GT : Ecp.G with type fr := Fr.t
   module Pairing : sig
     val pairing : G1.t -> G2.t -> GT.t
   end
 end
 
-
-module QAP(F : Field.S) : sig
-
-  type t =
-    { vwy : F.t Polynomial.t Var.Map.t vwy;
-      target : F.t Polynomial.t }
-
-  val build : Circuit.Gate.t Var.Map.t -> t * F.t Var.Map.t
-
-  val decompile : t -> F.t Var.Map.t -> (Var.t * ( (Var.t * F.t) list * (Var.t * F.t) list )) list
-  val eval : (Var.t * int) list -> t -> F.t Polynomial.t * F.t Polynomial.t
-  (** compute $p$ and $h$ *)
-
-  val test : unit -> unit
-
-end = struct
-
-  module Poly = Polynomial.Make(F)
-
-  type t =
-    { vwy : F.t Polynomial.t Var.Map.t vwy;
-      target : F.t Polynomial.t
-    }
-
-  let build (gates : Circuit.Gate.t Var.Map.t) =
-    let rk =
-      List.mapi (fun i (v, _) ->
-          Format.eprintf "gate %a : r_%a = %d@."
-            Var.pp v Var.pp v i;
-          v,i) @@ Var.Map.bindings gates in
-    let vars = Circuit.vars gates in
-
-    let make_matrix f =
-      Var.Map.of_set vars @@ fun k -> Var.Map.mapi (f k) gates
-    in
-
-    let v =
-      (* $v_k(r_g) = 1$ when gate $g$ has $c_k$ at the left of op *)
-      make_matrix @@ fun k _g (l, _r) ->
-      match List.assoc_opt k l with
-      | None | Some 0 -> 0
-      | Some n -> n
-    in
-
-    let w =
-      (* $w_k(r_g) = 1$ when gate $g$ has $c_k$ at the right of op *)
-      make_matrix @@ fun k _g (_l, r) ->
-      match List.assoc_opt k r with
-      | None | Some 0 -> 0
-      | Some n -> n
-    in
-
-    let y =
-      (* $y_k(r_g) = 1$ when gate (v, _, _) , $v = c_k$ *)
-      make_matrix @@ fun k g (_l, _r) ->
-      if k = g then 1 else 0
-    in
-
-    Var.Map.iter (fun k gns ->
-        Var.Map.iter (fun g n ->
-            Format.ef "v_%a(r_%a) = %d # gate %a has %a in the left arg@."
-              Var.pp k
-              Var.pp g
-              n
-              Var.pp g
-              Var.pp k) gns) v;
-    Var.Map.iter (fun k gns ->
-        Var.Map.iter (fun g n ->
-            Format.ef "w_%a(r_%a) = %d # gate %a has %a in the right arg@."
-              Var.pp k
-              Var.pp g
-              n
-              Var.pp g
-              Var.pp k) gns) w;
-    Var.Map.iter (fun k gns ->
-        Var.Map.iter (fun g n ->
-            Format.ef "y_%a(r_%a) = %d # gate %a outputs %a@."
-              Var.pp k
-              Var.pp g
-              n
-              Var.pp g
-              Var.pp k) gns) y;
-
-    let make_polynomials u =
-      Var.Map.of_set vars @@ fun k ->
-      let uk = u #! k in
-      Poly.interpolate
-        (List.map (fun (g, rg) ->
-             let ukrg (* $u_k(r_g)$ *) = uk #! g in
-             F.of_int rg, F.of_int ukrg) rk)
-    in
-
-    let v = make_polynomials v in
-    let w = make_polynomials w in
-    let y = make_polynomials y in
-
-    let t = Poly.z (List.map (fun (_, i) -> F.of_int i) rk) in
-
-    { vwy = { v; w; y }; target = t },
-    Var.Map.of_seq @@ List.to_seq @@ List.map (fun (v, i) -> v, F.of_int i) rk
-
-  let decompile {vwy= { v; w; y }; _} (rs : F.t Var.Map.t) =
-    let dom m =
-      Var.Set.of_seq @@ Seq.map fst @@ Var.Map.to_seq m
-    in
-    let domv = dom v in
-    let domw = dom w in
-    let domy = dom y in
-    assert (Var.Set.equal domv domw);
-    assert (Var.Set.equal domv domy);
-    Format.(ef "dom: @[%a@]@." (list ",@ " Var.pp) (Var.Set.elements domv));
-    Var.Map.fold (fun g r acc ->
-        let f v =
-          List.filter_map (fun (v, p) ->
-              let w = Poly.apply p r in
-              if F.(w = zero) then None
-              else Some (v, w))
-          @@
-          Var.Map.bindings v
-        in
-        let v = f v in
-        let w = f w in
-        let y = f y in
-        let pp = Format.(list " + " (fun ppf (v,i) -> f ppf "%a%a" F.pp i Var.pp v)) in
-        Format.ef "Gate %a : %a = (%a) * (%a)@." Var.pp g pp y pp v pp w;
-        match y with
-        | [y, f] when F.(one = f) -> (y, (v, w)) :: acc
-        | _ -> assert false
-      ) rs []
-
-  let eval (sol : (Var.t * int) list) { vwy;  target } =
-    let eval' (vps : Poly.t Var.Map.t) =
-      Poly.sum
-      @@ List.of_seq
-      @@ Seq.map (fun (k, p) ->
-          let a = List.assoc k sol in
-          Poly.mul_scalar (F.of_int a) p)
-      @@ Var.Map.to_seq vps
-    in
-    let v = eval' vwy.v in
-    let w = eval' vwy.w in
-    let y = eval' vwy.y in
-    let p = Poly.Infix.(v * w - y) in
-    let h, rem = Poly.Infix.(p /% target) in
-    assert (Poly.is_zero rem);
-    p, h
-
-  [@@@ocaml.warning "-26-27"]
-  let test () =
-    let open Expr in
-    let open Expr.Infix in
-    let open Format in
-    let x = Var.of_string "i" in
-    let e =
-      let x = Expr.Term (Var x) in
-      x * x + x * Expr.int 2 + Expr.int 3
-    in
-    ef "----------------@.";
-    ef "Expr: %a@." Expr.pp e;
-    let circuit = Circuit.of_expr e in
-    ef "Gates: @[<v>%a@]@." Circuit.pp circuit;
-    let ({ vwy; target= t } as qap), _rk = build circuit.gates in
-    let sol = Result.get_ok @@ Circuit.eval [x, 3; Circuit.one, 1] circuit.gates in
-    List.iter (fun (v,i) -> ef "%a = %d@." Var.pp v i) sol;
-    let p, _h = eval sol qap in
-    ef "p = %a@." Poly.pp p;
-    let h, rem = Poly.Infix.(p /% t) in
-    ef "t = %a@." Poly.pp t;
-    ef "h = %a@." Poly.pp h;
-    ef "rem = %a@." Poly.pp rem
-
-end
-
 module Make(C : CURVE) = struct
 
-  include C
+  (* open, not include.
+     [include C] instead opens the gate to the module typing hell *)
+  open C
 
-  let g1 = (module G1 : G with type t = G1.t)
-  let g2 = (module G2 : G with type t = G2.t)
+  module Polynomial = Polynomial.Make(C.Fr)
+  module Lang = Lang.Make(C.Fr)
+  module Circuit = Circuit.Make(C.Fr)
+  module QAP = QAP.Make(C.Fr)
 
-  module Poly = Polynomial.Make(Fr)
+  module type G = Ecp.G with type fr := Fr.t
 
-  module QAP = QAP(Fr)
+  let g1 = (module G1 : G with type t = C.G1.t)
+  let g2 = (module G2 : G with type t = C.G2.t)
 
   (* $ \Sigma_{k\in Dom(m)} f(k,m_k) $ *)
   let sum_map (type t) (module G : G with type t = t) m f =
@@ -262,7 +60,7 @@ module Make(C : CURVE) = struct
         i, G.of_Fr s'i)
 
   (* $\Sigma_i c_i x^i$ *)
-  let apply_powers (type t) (module G : G with type t = t) (cs : Fr.t Polynomial.t)  xis =
+  let apply_powers (type t) (module G : G with type t = t) (cs : Polynomial.t)  xis =
     let open G in
     sum @@
     List.mapi (fun i c ->
@@ -279,50 +77,50 @@ module Make(C : CURVE) = struct
        in $G_2$ too.
     *)
     type ekey =
-      { v    : G1.t Var.Map.t; (* $\{ g_v^{v_k(s)} \}_{k\in I_{mid}}$ *)
-        w    : G2.t Var.Map.t; (* $\{ g_w^{w_k(s)} \}_{k\in I_{mid}}$ *)
-        y    : G1.t Var.Map.t; (* $\{ g_y^{y_k(s)} \}_{k\in I_{mid}}$ *)
-        av   : G1.t Var.Map.t; (* $\{ g_v^{\alpha_v v_k(s)} \}_{k\in I_{mid}}$ *)
-        aw   : G2.t Var.Map.t; (* $\{ g_w^{\alpha_y w_k(s)} \}_{k\in I_{mid}}$ *)
-        ay   : G1.t Var.Map.t; (* $\{ g_y^{\alpha y_k(s)} \}_{k\in I_{mid}}$ *)
-        s'i  : (int * G1.t) list; (* $\{ g_1^{s^i} \}_{i\in[d]}$ *)
-        bvwy : G1.t Var.Map.t; (* $\{ g_v^{\beta v_k(s)} g_w^{\beta w_k(s)} g_y^{\beta y_k(s)} \}_{k\in I_{mid}}$ *)
+      { vv    : G1.t Var.Map.t; (* $\{ g_v^{v_k(s)} \}_{k\in I_{mid}}$ *)
+        ww    : G2.t Var.Map.t; (* $\{ g_w^{w_k(s)} \}_{k\in I_{mid}}$ *)
+        yy    : G1.t Var.Map.t; (* $\{ g_y^{y_k(s)} \}_{k\in I_{mid}}$ *)
+        vav   : G1.t Var.Map.t; (* $\{ g_v^{\alpha_v v_k(s)} \}_{k\in I_{mid}}$ *)
+        waw   : G2.t Var.Map.t; (* $\{ g_w^{\alpha_w w_k(s)} \}_{k\in I_{mid}}$ *)
+        yay   : G1.t Var.Map.t; (* $\{ g_y^{\alpha y_k(s)} \}_{k\in I_{mid}}$ *)
+        si    : (int * G1.t) list; (* $\{ g_1^{s^i} \}_{i\in[d]}$ *)
+        bvwy  : G1.t Var.Map.t; (* $\{ g_v^{\beta v_k(s)} g_w^{\beta w_k(s)} g_y^{\beta y_k(s)} \}_{k\in I_{mid}}$ *)
 
         (* Required for ZK *)
-        s'i2 : (int * G2.t) list; (* $\{ g_1^{s^i} \}_{i\in[d]}$ *)
-        vt : G1.t; (* $g_v^{t(s)}$ *)
-        wt : G2.t; (* $g_w^{t(s)}$ *)
-        yt : G1.t; (* $g_y^{t(s)}$ *)
-        avt : G1.t; (* $g_v^{\alpha_v t(s)}$ *)
-        awt : G2.t; (* $g_w^{\alpha_y t(s)}$ *)
-        ayt : G1.t; (* $g_y^{\alpha_w t(s)}$ *)
-        vbt : G1.t;  (* $g_v^{\beta t(s)}$ *)
-        wbt : G1.t;  (* $g_w^{\beta t(s)}$ *)
-        ybt : G1.t;  (* $g_y^{\beta t(s)}$ *)
-        v_all : G1.t Var.Map.t; (* $\{ g_1^{v_k(s)} \}_{k\in [N]}$ Not $g_v^{v_k(s)}$!! *)
-        w_all : G1.t Var.Map.t; (* $\{ g_1^{w_k(s)} \}_{k\in [N]}$ Not $g_w^{v_k(s)}$!! *)
+        si2   : (int * G2.t) list; (* $\{ g_1^{s^i} \}_{i\in[d]}$ *)
+        vt    : G1.t; (* $g_v^{t(s)}$ *)
+        wt    : G2.t; (* $g_w^{t(s)}$ *)
+        yt    : G1.t; (* $g_y^{t(s)}$ *)
+        vavt  : G1.t; (* $g_v^{\alpha_v t(s)}$ *)
+        wawt  : G2.t; (* $g_w^{\alpha_y t(s)}$ *)
+        yayt  : G1.t; (* $g_y^{\alpha_w t(s)}$ *)
+        vbt   : G1.t;  (* $g_v^{\beta t(s)}$ *)
+        wbt   : G1.t;  (* $g_w^{\beta t(s)}$ *)
+        ybt   : G1.t;  (* $g_y^{\beta t(s)}$ *)
+        v_all : G1.t Var.Map.t; (* $\{ g_1^{v_k(s)} \}_{k\in [m]}$ Not $g_v^{v_k(s)}$!! *)
+        w_all : G1.t Var.Map.t; (* $\{ g_1^{w_k(s)} \}_{k\in [m]$ Not $g_w^{v_k(s)}$!! *)
      }
 
     type vkey =
       { one    : G1.t; (* $g^1$ *)
-        one2 : G2.t; (* $g^1$ *)
+        one2   : G2.t; (* $g^1$ *)
         av     : G2.t; (* $g^{\alpha_v}$ *)
         aw     : G1.t; (* $g^{\alpha_w}$ *)
         ay     : G2.t; (* $g^{\alpha_y}$ *)
         gm2    : G2.t; (* $g^\gamma$ *)
         bgm    : G1.t; (* $g^{\beta\gamma}$ *)
         bgm2   : G2.t; (* $g^{\beta\gamma}$ *)
-        t      : G2.t; (* $g_y^{t(s)}$ *)
-        v      : G1.t Var.Map.t; (* $\{ g_v^{v_k(s)} \}_{k\in [N]}$ *)
-        w      : G2.t Var.Map.t; (* $\{ g_w^{w_k(s)} \}_{k\in [N]}$ *)
-        y      : G1.t Var.Map.t; (* $\{ g_y^{y_k(s)} \}_{k\in [N]}$ *)
+        yt     : G2.t; (* $g_y^{t(s)}$ *)
+        vv_io : G1.t Var.Map.t; (* $\{ g_v^{v_k(s)} \}_{k\in [N]}$ *)
+        ww_io : G2.t Var.Map.t; (* $\{ g_w^{w_k(s)} \}_{k\in [N]}$ *)
+        yy_io : G1.t Var.Map.t; (* $\{ g_y^{y_k(s)} \}_{k\in [N]}$ *)
       }
 
     let generate rng (circuit : Circuit.t) QAP.{vwy; target= t} =
       let imid (* $I_{mid}$ *) = circuit.mids in
       let n (* $[N]$ *) = Circuit.ios circuit in
       let m (* [m] *) = Circuit.vars circuit.gates in
-      let d = Poly.degree t in
+      let d = Polynomial.degree t in
 
       let rv (* $r_v$ *)      = Fr.gen rng in
       let rw (* $r_w$ *)      = Fr.gen rng in
@@ -331,66 +129,62 @@ module Make(C : CURVE) = struct
       let aw (* $\alpha_w$ *) = Fr.gen rng in
       let ay (* $\alpha_y$ *) = Fr.gen rng in
 
-      (* nasty *)
-      let _av = av and _aw = aw and _ay = ay in
-
       let b (* $\beta$ *)     = Fr.gen rng in
-      let gm (* $\gamma$ *)     = Fr.gen rng in
+      let gm (* $\gamma$ *)   = Fr.gen rng in
 
       let ry (* $r_y$ *)      = Fr.(rv * rw) in
 
-      let gv (* $g_v$ *) = G1.of_Fr rv in
-      let gw (* $g_w$ *) = G1.of_Fr rw in
-      let gw2 = G2.of_Fr rw in
-      let gy (* $g_y$ *) = G1.of_Fr ry in
-      let gy2 = G2.of_Fr ry in
+      let gv (* $g_v$ *)      = G1.of_Fr rv in
+      let gw (* $g_w$ *)      = G1.of_Fr rw in
+      let gw2                 = G2.of_Fr rw in
+      let gy (* $g_y$ *)      = G1.of_Fr ry in
+      let gy2                 = G2.of_Fr ry in
 
-      (* nasty *)
-      let _t = Poly.apply t s in
+      let t = Polynomial.apply t s in
 
       (* $\{ g_u^{u_k(s)} \}_{k\in I_{set}}$ *)
       let map_apply_s (type t) (module G : G with type t = t) gu u set =
         Var.Map.of_set set @@ fun k ->
         let uk = u #! k in
-        let uks = Poly.apply uk s in
+        let uks = Polynomial.apply uk s in
         G.(gu * uks)
       in
 
       let ekey =
         (* $\{ g_v^{v_k(s)} \}_{k\in I_{mid}}$ *)
-        let v = map_apply_s g1 gv vwy.v imid in
+        let vv = map_apply_s g1 gv vwy.v imid in
         (* $\{ g_w^{w_k(s)} \}_{k\in I_{mid}}$ *)
-        let w1 = map_apply_s g1 gw vwy.w imid in
-        let w = map_apply_s g2 gw2 vwy.w imid in
+        let ww1 = map_apply_s g1 gw vwy.w imid in
+        let ww = map_apply_s g2 gw2 vwy.w imid in
         (* $\{ g_y^{y_k(s)} \}_{k\in I_{mid}}$ *)
-        let y = map_apply_s g1 gy vwy.y imid in
+        let yy = map_apply_s g1 gy vwy.y imid in
 
         (* $\{ g_v^{\alpha_v v_k(s)} \}_{k\in I_{mid}}$ *)
-        let av = mul_map g1 v av in
+        let vav = mul_map g1 vv av in
         (* $\{ g_w^{\alpha_w w_k(s)} \}_{k\in I_{mid}}$ *)
-        let aw = mul_map g2 w aw in
+        let waw = mul_map g2 ww aw in
         (* $\{ g_y^{\alpha_y y_k(s)} \}_{k\in I_{mid}}$ *)
-        let ay = mul_map g1 y ay in
+        let yay = mul_map g1 yy ay in
 
         (* $\{ g^s^i \}_{i\in[d]}$ *)
-        let s'i = powers g1 d s in
-        let s'i2 = powers g2 d s in
+        let si = powers g1 d s in
+        let si2 = powers g2 d s in
 
         (* $\{ g_v^{\beta v_k(s)} g_w^{\beta w_k(s)} g_y^{\beta y_k(s)} \}_{k\in I_{mid}}$ *)
         let bvwy =
           Var.Map.of_set imid @@ fun k ->
-          G1.( ((v #! k) + (w1 #! k) + (y #! k)) * b )
+          G1.( ((vv #! k) + (ww1 #! k) + (yy #! k)) * b )
         in
 
-        let vt (* $g_v^{\alpha_v t(s)}$ *) = G1.(gv * _t) in
-        let wt (* $g_w^{\alpha_w t(s)}$ *) = G2.(gw2 * _t) in
-        let yt (* $g_y^{\alpha_y t(s)}$ *) = G1.(gy * _t) in
-        let avt (* $g_v^{\alpha_v t(s)}$ *) = G1.(gv * _av * _t) in
-        let awt (* $g_w^{\alpha_w t(s)}$ *) = G2.(gw2 * _aw * _t) in
-        let ayt (* $g_y^{\alpha_y t(s)}$ *) = G1.(gy * _ay * _t) in
-        let vbt (* $g_v^{\beta t(s)}$ *) = G1.(gv * b * _t) in
-        let wbt (* $g_w^{\beta t(s)}$ *) = G1.(gw * b * _t) in
-        let ybt (* $g_y^{\beta t(s)}$ *) = G1.(gy * b * _t) in
+        let vt (* $g_v^{t(s)}$ *) = G1.(gv * t) in
+        let wt (* $g_w^{t(s)}$ *) = G2.(gw2 * t) in
+        let yt (* $g_y^{t(s)}$ *) = G1.(gy * t) in
+        let vavt (* $g_v^{\alpha_v t(s)}$ *) = G1.(gv * av * t) in
+        let wawt (* $g_w^{\alpha_w t(s)}$ *) = G2.(gw2 * aw * t) in
+        let yayt (* $g_y^{\alpha_y t(s)}$ *) = G1.(gy * ay * t) in
+        let vbt (* $g_v^{\beta t(s)}$ *) = G1.(gv * b * t) in
+        let wbt (* $g_w^{\beta t(s)}$ *) = G1.(gw * b * t) in
+        let ybt (* $g_y^{\beta t(s)}$ *) = G1.(gy * b * t) in
 
         (* $\{ g_1^{v_k(s)} \}_{k\in [m]$ *)
         let v_all = map_apply_s g1 G1.one vwy.v m in
@@ -398,23 +192,23 @@ module Make(C : CURVE) = struct
         (* $\{ g_1^{w_k(s)} \}_{k\in [m]$ *)
         let w_all = map_apply_s g1 G1.one vwy.w m in
 
-        { v; w; y; av; aw; ay; s'i; bvwy;
-          s'i2; vt; wt; yt; avt; awt; ayt; vbt; wbt; ybt; v_all; w_all }
+        { vv; ww; yy; vav; waw; yay; si; bvwy;
+          si2; vt; wt; yt; vavt; wawt; yayt; vbt; wbt; ybt; v_all; w_all }
       in
 
       let vkey =
         let one (* $g^1$ *) = G1.one in
         let one2 (* $g^1$ *) = G2.one in
-        let av (* $g^\alpha_v$ *) = G2.of_Fr av in
-        let aw (* $g^\alpha_w$ *) = G1.of_Fr aw in
-        let ay (* $g^\alpha_y$ *) = G2.of_Fr ay in
+        let av (* $g^{\alpha_v}$ *) = G2.of_Fr av in
+        let aw (* $g^{\alpha_w}$ *) = G1.of_Fr aw in
+        let ay (* $g^{\alpha_y}$ *) = G2.of_Fr ay in
         let gm, gm2 (* $g^\gamma$ *) = G1.of_Fr gm, G2.of_Fr gm in
         let bgm (* $g^{\beta\gamma}$ *) = G1.(gm * b) in
         let bgm2 (* $g^{\beta\gamma}$ *) = G2.(gm2 * b) in
-        let t (* $g_y^{t(s)}$ *) = G2.(gy2 * (Poly.apply t s)) in
-        let v (* $\{g_v^{v_k(s)}\}_{k\in [N]}$ *) = map_apply_s g1 gv vwy.v n in
-        let w (* $\{g_w^{w_k(s)}\}_{k\in [N]}$ *) = map_apply_s g2 gw2 vwy.w n in
-        let y (* $\{g_y^{y_k(s)}\}_{k\in [N]}$ *) = map_apply_s g1 gy vwy.y n in
+        let yt (* $g_y^{t(s)}$ *) = G2.(gy2 * t) in
+        let vv_io (* $\{g_v^{v_k(s)}\}_{k\in [N]}$ *) = map_apply_s g1 gv vwy.v n in
+        let ww_io (* $\{g_w^{w_k(s)}\}_{k\in [N]}$ *) = map_apply_s g2 gw2 vwy.w n in
+        let yy_io (* $\{g_y^{y_k(s)}\}_{k\in [N]}$ *) = map_apply_s g1 gy vwy.y n in
         { one;
           one2;
           av;
@@ -423,10 +217,10 @@ module Make(C : CURVE) = struct
           gm2;
           bgm;
           bgm2;
-          t;
-          v;
-          w;
-          y }
+          yt;
+          vv_io;
+          ww_io;
+          yy_io; }
       in
 
       ekey, vkey
@@ -436,60 +230,57 @@ module Make(C : CURVE) = struct
   module Compute = struct
 
     type proof =
-      { v  : G1.t; (* $g_v^{v_{mid}(s)}$ *)
-        w  : G2.t; (* $g_w^{w_{mid}(s)}$ *)
-        y  : G1.t; (* $g_y^{y_{mid}(s)}$ *)
+      { vv  : G1.t; (* $g_v^{v_{mid}(s)}$ *)
+        ww  : G2.t; (* $g_w^{w_{mid}(s)}$ *)
+        yy  : G1.t; (* $g_y^{y_{mid}(s)}$ *)
 
         h  : G1.t;  (* $g^{h(s)}$ *)
 
-        av : G1.t; (* $g_v^{\alpha_v v_{mid}(s)}$ *)
+        vavv : G1.t; (* $g_v^{\alpha_v v_{mid}(s)}$ *)
 
-        aw : G2.t; (* $g_w^{\alpha_w w_{mid}(s)}$ *)
-        ay : G1.t; (* $g_y^{\alpha_y y_{mid}(s)}$ *)
+        waww : G2.t; (* $g_w^{\alpha_w w_{mid}(s)}$ *)
+        yayy : G1.t; (* $g_y^{\alpha_y y_{mid}(s)}$ *)
 
         bvwy : G1.t; (* $g_v^{\beta v_{mid}(s)} g_w^{\beta w_{mid}(s)} g_y^{\beta y_{mid}(s)}$ *)
       }
 
-    let f (ekey : KeyGen.ekey) (sol : Fr.t Var.Map.t) (h_poly : Poly.t) =
+    let f (ekey : KeyGen.ekey) (sol : Fr.t Var.Map.t) (h_poly : Polynomial.t) =
       let c = sol in
-      let mid = Var.Map.domain ekey.v in
+      let mid = Var.Map.domain ekey.vv in
       let c_mid = Var.Map.filter (fun v _ -> Var.Set.mem v mid) c in
 
-     Format.(ef "Compute for @[%a@]@."
-                (list ",@ " (fun ppf (v,n) -> f ppf "%a = %a" Var.pp v Fr.pp n))
-                (List.of_seq @@ Var.Map.to_seq c));
-
       (* $v_{mid}(s) = \Sigma_{k\in I_{mid}} c_k \cdot v_k(s)$ *)
-      let v (* $g_v^{v_{mid}(s)}$ *) = dot g1 ekey.v c_mid in
+      let vv (* $g_v^{v_{mid}(s)}$ *) = dot g1 ekey.vv c_mid in
 
       (* $w(s) = \Sigma_{k\in [m]} c_k \cdot w_k(s)$ *)
-      let w (* $g_w^{w_{mid}(s)}$ *) = dot g2 ekey.w c_mid in
+      let ww (* $g_w^{w_{mid}(s)}$ *) = dot g2 ekey.ww c_mid in
 
       (* $y(s) = \Sigma_{k\in [m]} c_k \cdot y_k(s)$ *)
-      let y (* $g_y^{y_{mid}(s)}$ *) = dot g1 ekey.y c_mid in
+      let yy (* $g_y^{y_{mid}(s)}$ *) = dot g1 ekey.yy c_mid in
 
       (* $h(s) = h_0 + h_1  s + h_2  s^2 + .. + h_d  s^d$ *)
-      let h (* $g^{h(s)}$ *) = apply_powers g1 h_poly ekey.s'i in
+      let h (* $g^{h(s)}$ *) = apply_powers g1 h_poly ekey.si in
 
       (* $\alpha_v v_{mid}(s) = \Sigma_{k\in I_{mid}} c_k \cdot \alpha_v v_k(s)$ *)
-      let av (* $g_v^{\alpha v_{mid}(s)}$ *) = dot g1 ekey.av c_mid in
+      let vavv (* $g_v^{\alpha v_{mid}(s)}$ *) = dot g1 ekey.vav c_mid in
 
       (* $\alpha_w w_{mid}(s) = \Sigma_{k\in I_{mid}} c_k \cdot \alpha_w w_k(s)$ *)
-      let aw (* $g_w^{\alpha_w w_{mid}(s)}$ *) = dot g2 ekey.aw c_mid in
+      let waww (* $g_w^{\alpha_w w_{mid}(s)}$ *) = dot g2 ekey.waw c_mid in
 
       (* $\alpha_y y_{mid}(s) = \Sigma_{k\in I_{mid}} c_k \cdot \alpha_y y_k(s)$ *)
-      let ay (* $g_y^{\alpha_y y_{mid}(s)}$ *) = dot g1 ekey.ay c_mid in
+      let yayy (* $g_y^{\alpha_y y_{mid}(s)}$ *) = dot g1 ekey.yay c_mid in
 
       let bvwy (* $g_v^{\beta v_{mid}(s)} g_w^{\beta w_{mid}(s)} g_y^{\beta y_{mid}(s)}$ *) =
         dot g1 ekey.bvwy c_mid
       in
-      { v;
-        w;
-        y;
+
+      { vv;
+        ww;
+        yy;
         h;
-        av;
-        aw;
-        ay;
+        vavv;
+        waww;
+        yayy;
         bvwy;
       }
 
@@ -499,9 +290,6 @@ module Make(C : CURVE) = struct
 
     let f (vkey : KeyGen.vkey) (ios : Fr.t Var.Map.t) (proof : Compute.proof) =
       let c = ios in (* $Dom(c) = [N]$ *)
-      Format.(ef "Verifying for @[%a@]@."
-                (list ",@ " (fun ppf (v,n) -> f ppf "%a = %a" Var.pp v Fr.pp n))
-                (List.of_seq @@ Var.Map.to_seq c));
 
       (* $e(g_v^{v_{mid}(s)}, g^{\alpha_v}) = e(g_v^{\alpha_v v_{mid}(s)}, g)$
          $e(g_w^{w_{mid}(s)}, g^{\alpha_w}) = e(g_w^{\alpha_w w_{mid}(s)}, g)$
@@ -525,19 +313,21 @@ module Make(C : CURVE) = struct
          Actually, $v_{mid}(s) = \Sigma_{k\in I_{mid}} c_k \cdot v_k(s)$
          $e(g_v^{v_{mid}(s)}, g^{\alpha_v}) = e(g_v^{\alpha_v v_{mid}(s)}, g)$
       *)
-      assert (e proof.v vkey.av = e proof.av vkey.one2);
+      assert (e proof.vv vkey.av = e proof.vavv vkey.one2);
 
       (* KC check
          $w(s)$ is really a linear combination of $\{w_k(s)\}$.
          Actually, $w(s) = \Sigma_{k\in I_{mid}} c_k \cdot w_k(s)$
-         $e(g_w^{w_{mid}(s)}, g^{\alpha_w}) = e(g_w^{\alpha_w w_{mid}(s)}, g)$
+         $e(g^{\alpha_w}, g_w^{w_{mid}(s)}) = e(g, g_w^{\alpha_w w_{mid}(s)})$
       *)
-      assert (e vkey.aw proof.w = e vkey.one proof.aw);
+      assert (e vkey.aw proof.ww = e vkey.one proof.waww);
 
       (* KC check
          $y(s)$ is really a linear combination of $\{y_k(s)\}$.
-         Actually, $y(s) = \Sigma_{k\in I_{mid}} c_k \cdot y_k(s)$ *)
-      assert (e proof.y vkey.ay = e proof.ay vkey.one2);
+         Actually, $y(s) = \Sigma_{k\in I_{mid}} c_k \cdot y_k(s)$
+         $e(g_y^{y_{mid}(s)}, g^{\alpha_y}) = e(g_y^{\alpha_y y_{mid}(s)}, g)$
+      *)
+      assert (e proof.yy vkey.ay = e proof.yayy vkey.one2);
 
       (* KC check
          $g_v^{\beta v_{mid}(s)} g_w^{\beta_w_{mid}(s)} g_y^{\beta y_{mid}(s)}$ is really a linear combination of
@@ -555,33 +345,33 @@ module Make(C : CURVE) = struct
       *)
       assert (
           e proof.bvwy vkey.gm2
-          = e proof.v vkey.bgm2
-            + e vkey.bgm proof.w
-            + e proof.y vkey.bgm2
+          = e proof.vv vkey.bgm2
+            + e vkey.bgm proof.ww
+            + e proof.yy vkey.bgm2
         );
 
       let vio (* $g_v^{v_{io}(s)}$ *) =
         (* $g_v^{v_{io}(s)} = \Pi_{k\in [N]} (g_v^{v_k(s)})^{c_k} = \Pi_{k\in [N]} g_v^{v_k(s) \cdot c_k}$
            The paper uses prod for the operaiton of Gi.  Our code uses add instead *)
-        assert (Var.Set.equal (Var.Map.domain c) (Var.Map.domain vkey.v));
+        assert (Var.Set.equal (Var.Map.domain c) (Var.Map.domain vkey.vv_io));
         sum_map g1 c @@ fun k ck ->
-            let vks = vkey.v #! k in
+            let vks = vkey.vv_io #! k in
             G1.(vks * ck)
       in
 
       let wio (* $g_w^{w_{io}(s)}$ *) =
         (* $g_w^{w_{io}(s)} = \Pi_{k\in [N]} (g_w^{w_k(s)})^{c_k} = \Pi_{k\in [N]} g_w^{w_k(s) \cdot c_k}$ *)
-        assert (Var.Set.equal (Var.Map.domain c) (Var.Map.domain vkey.w));
+        assert (Var.Set.equal (Var.Map.domain c) (Var.Map.domain vkey.ww_io));
         sum_map g2 c @@ fun k ck ->
-            let wks = vkey.w #! k in
+            let wks = vkey.ww_io #! k in
             G2.(wks * ck)
       in
 
       let yio (* $g_y^{y_{io}(s)}$ *) =
         (* $g_y^{y_{io}(s)} = \Pi_{k\in [N]} (g_y^{y_k(s)})^{c_k} = \Pi_{k\in [N]} g_y^{y_k(s) \cdot c_k}$ *)
-        assert (Var.Set.equal (Var.Map.domain c) (Var.Map.domain vkey.y));
+        assert (Var.Set.equal (Var.Map.domain c) (Var.Map.domain vkey.yy_io));
         sum_map g1 c @@ fun k ck ->
-            let yks = vkey.y #! k in
+            let yks = vkey.yy_io #! k in
             G1.(yks * ck)
       in
 
@@ -611,9 +401,9 @@ module Make(C : CURVE) = struct
 
       *)
       assert (
-        e G1.(vio + proof.v) G2.(wio + proof.w)
-        - e G1.(yio + proof.y) vkey.one2
-        = e proof.h vkey.t
+        e G1.(vio + proof.vv) G2.(wio + proof.ww)
+        - e G1.(yio + proof.yy) vkey.one2
+        = e proof.h vkey.yt
         )
   end
 
@@ -621,30 +411,30 @@ module Make(C : CURVE) = struct
 
     open Compute
 
-    let f rng (target : Poly.t) (ekey : KeyGen.ekey) (sol : Fr.t Var.Map.t) (h_poly : Poly.t) =
+    let f rng (target : Polynomial.t) (ekey : KeyGen.ekey) (sol : Fr.t Var.Map.t) (h_poly : Polynomial.t) =
       let dv (* $\delta_v$ *) = Fr.gen rng in
       let dw (* $\delta_w$ *) = Fr.gen rng in
       let dy (* $\delta_y$ *) = Fr.gen rng in
-      let t (* $g_1^{t(s)}$, not $g_y^{t(s)}$! *) = apply_powers g1 target ekey.s'i in
+      let t (* $g_1^{t(s)}$, not $g_y^{t(s)}$! *) = apply_powers g1 target ekey.si in
 
       let c = sol in
-      let mid = Var.Map.domain ekey.v in
+      let mid = Var.Map.domain ekey.vv in
       let c_mid = Var.Map.filter (fun v _ -> Var.Set.mem v mid) c in
 
       (* $v_{mid}(s) = \Sigma_{k\in I_{mid}} c_k \cdot v_k(s)$ *)
-      let v (* $g_v^{v_{mid}(s)}$ *) = dot g1 ekey.v c_mid in
-      let v' (* $g_v^{v_{mid}(s) + \delta_v t(s)}$ *) = G1.(v + ekey.vt * dv) in
+      let vv (* $g_v^{v_{mid}(s)}$ *) = dot g1 ekey.vv c_mid in
+      let vv' (* $g_v^{v_{mid}(s) + \delta_v t(s)}$ *) = G1.(vv + ekey.vt * dv) in
 
-      (* $w(s) = \Sigma_{k\in [m]} c_k \cdot w_k(s)$ *)
-      let w (* $g_w^{w_{mid}(s)}$ *) = dot g2 ekey.w c_mid in
-      let w' (* $g_w^{w_{mid}(s) + \delta_w t(s)}$ *) = G2.(w + ekey.wt * dw) in
+      (* $w_{mid}(s) = \Sigma_{k\in I_{mid}} c_k \cdot w_k(s)$ *)
+      let ww (* $g_w^{w_{mid}(s)}$ *) = dot g2 ekey.ww c_mid in
+      let ww' (* $g_w^{w_{mid}(s) + \delta_w t(s)}$ *) = G2.(ww + ekey.wt * dw) in
 
-      (* $y(s) = \Sigma_{k\in [m]} c_k \cdot y_k(s)$ *)
-      let y (* $g_y^{y_{mid}(s)}$ *) = dot g1 ekey.y c_mid in
-      let y' (* $g_y^{y_{mid}(s) + \delta_y  t(s)}$ *) = G1.(y + ekey.yt * dy) in
+      (* $y_{mid}(s) = \Sigma_{k\in I_{mid}} c_k \cdot y_k(s)$ *)
+      let yy (* $g_y^{y_{mid}(s)}$ *) = dot g1 ekey.yy c_mid in
+      let yy' (* $g_y^{y_{mid}(s) + \delta_y  t(s)}$ *) = G1.(yy + ekey.yt * dy) in
 
       (* $h(s) = h_0 + h_1  s + h_2  s^2 + .. + h_d  s^d$ *)
-      let h (* $g^{h(s)}$ *) = apply_powers g1 h_poly ekey.s'i in
+      let h (* $g^{h(s)}$ *) = apply_powers g1 h_poly ekey.si in
       (* $p'(x) := v'(x) \cdot w'(x) - y'(x)$
              $= (\Sigma c_k v_k(x) + \delta_v t(x))\cdot (\Sigma c_k w_k(x) + \delta_w t(x))
                      - (\Sigma c_k y_k(x) + \delta_y t(x))$
@@ -683,16 +473,16 @@ module Make(C : CURVE) = struct
       in
 
       (* $\alpha_v v_{mid}(s) = \Sigma_{k\in I_{mid}} c_k \cdot \alpha_v v_k(s)$ *)
-      let av (* $g_v^{\alpha v_{mid}(s)}$ *) = dot g1 ekey.av c_mid in
-      let av' (* $g_v^{\alpha (v_{mid}(s) + \delta_v t(s))}$ *) = G1.(av + ekey.avt * dv) in
+      let vavv (* $g_v^{\alpha_v v_{mid}(s)}$ *) = dot g1 ekey.vav c_mid in
+      let vavv' (* $g_v^{\alpha_v (v_{mid}(s) + \delta_v t(s))}$ *) = G1.(vavv + ekey.vavt * dv) in
 
       (* $\alpha_w w_{mid}(s) = \Sigma_{k\in I_{mid}} c_k \cdot \alpha_w w_k(s)$ *)
-      let aw (* $g_w^{\alpha_w w_{mid}(s)}$ *) = dot g2 ekey.aw c_mid in
-      let aw' (* $g_w^{\alpha_w (w_{mid}(s) + \delta_w t(s))}$ *) = G2.(aw + ekey.awt * dw) in
+      let waww (* $g_w^{\alpha_w w_{mid}(s)}$ *) = dot g2 ekey.waw c_mid in
+      let waww' (* $g_w^{\alpha_w (w_{mid}(s) + \delta_w t(s))}$ *) = G2.(waww + ekey.wawt * dw) in
 
       (* $\alpha_y y_{mid}(s) = \Sigma_{k\in I_{mid}} c_k \cdot \alpha_y y_k(s)$ *)
-      let ay (* $g_y^{\alpha_y y_{mid}(s)}$ *) = dot g1 ekey.ay c_mid in
-      let ay' (* $g_y^{\alpha_y (y_{mid}(s) + \delta_y t(s))}$ *) = G1.(ay + ekey.ayt * dy) in
+      let yayy (* $g_y^{\alpha_y y_{mid}(s)}$ *) = dot g1 ekey.yay c_mid in
+      let yayy' (* $g_y^{\alpha_y (y_{mid}(s) + \delta_y t(s))}$ *) = G1.(yayy + ekey.yayt * dy) in
 
       let bvwy (* $g_v^{\beta v_{mid}(s)} g_w^{\beta w_{mid}(s)} g_y^{\beta y_{mid}(s)}$ *) =
         dot g1 ekey.bvwy c_mid
@@ -700,44 +490,44 @@ module Make(C : CURVE) = struct
       let bvwy' (* $g_v^{\beta (v_{mid}(s) + \delta_v t(s))} g_w^{\beta (w_{mid}(s) + \delta_w t(s))} g_y^{\beta (y_{mid}(s) + \delta_y t(s))}$ *) =
         G1.(bvwy + ekey.vbt * dv + ekey.wbt * dw + ekey.ybt * dy)
       in
-      { v = v';
-        w = w';
-        y = y';
+      { vv = vv';
+        ww = ww';
+        yy = yy';
         h = h';
-        av = av';
-        aw  = aw';
-        ay = ay';
+        vavv = vavv';
+        waww  = waww';
+        yayy = yayy';
         bvwy = bvwy';
       }
 
   end
 end
 
-
 let protocol_test () =
   prerr_endline "PROTOCOL TEST";
+  let rng = Random.State.make_self_init () in
+
   let module C = Ecp.Bls12_381 in
-  let module Impl = Make(C) in
-  let open Impl in
+  let module Fr = C.Fr in
+  let module Lang = Lang.Make(Fr) in
+
   let x = Var.of_string "i" in
   let e =
-    let open Expr in
+    let open Lang in
     let open Expr.Infix in
     let x = Expr.Term (Var x) in
-    x * x * x + x * Expr.int 2 + Expr.int 3
+    x * x * x + x * !!!2 + !!!3
   in
-  let rng = Random.State.make_self_init () in
+
+  let module P = Make(C) in
+  let open P in
+
   let prepare e =
     let circuit = Circuit.of_expr e in
     let qap, rk = QAP.build circuit.gates in
     prerr_endline "decompile";
     let gates = QAP.decompile qap rk in
-    let gates : Circuit.Gate.t Var.Map.t =
-      Var.Map.of_seq @@ List.to_seq @@
-      List.map (fun (o,(l,r)) ->
-          let f = List.map (fun (v, f) -> (v, Z.to_int @@ C.Fr.to_z f)) in
-          o, (f l, f r)) gates
-    in
+    let gates : Circuit.Gate.t Var.Map.t = Var.Map.of_list gates in
     assert (Var.Map.equal (fun (l1, r1) (l2, r2) ->
         let l1 = List.sort compare l1 in
         let r1 = List.sort compare r1 in
@@ -746,28 +536,22 @@ let protocol_test () =
         (l1, r1) = (l2, r2)) circuit.gates gates);
     circuit, qap
   in
+
   let circuit, qap = prepare e in
-  let ekey, vkey = KeyGen.generate rng circuit qap in
+  let ekey, vkey = P.KeyGen.generate rng circuit qap in
   let proof =
-    let sol = Result.get_ok @@ Circuit.eval [x, 10; Circuit.one, 1] circuit.gates in
-    Format.(ef "@[<v>%a@]@." (list "@," (fun ppf (v,i) -> f ppf "%a = %d" Var.pp v i)) sol);
+    let sol =
+      Result.get_ok @@ Circuit.eval [x, Fr.of_int 10; Circuit.one, Fr.of_int 1] circuit.gates in
+    Format.(ef "@[<v>%a@]@." (list "@," (fun ppf (v,i) -> f ppf "%a = %a" Var.pp v Fr.pp i)) sol);
     let _p, h = QAP.eval sol qap in
-    Compute.f ekey (Var.Map.of_seq @@ Seq.map (fun (v,i) -> v, C.Fr.of_int i) @@ List.to_seq sol) h
+    Compute.f ekey (Var.Map.of_list sol) h
   in
-(*
-  let _proof' =
-    let sol = Result.get_ok @@ Circuit.eval [x, 11; Circuit.one, 1] circuit.gates in
-    Format.(ef "@[<v>%a@]@." (list "@," (fun ppf (v,i) -> f ppf "%a = %d" Var.pp v i)) sol);
-    let _p, h = QAP.eval sol qap in
-    Compute.f ekey (Var.Map.of_seq @@ Seq.map (fun (v,i) -> v, C.Fr.of_int i) @@ List.to_seq sol) h
-  in
-*)
   let () =
     let ios = Circuit.ios circuit in
     assert (Var.Set.equal ios (Var.Set.of_list [x; Circuit.one; Circuit.out]));
     let input = [x, 10; Circuit.one, 1] in
     let output = [Circuit.out, 1023] in
-    Verify.f vkey (Var.Map.of_seq @@ Seq.map (fun (v,i) -> v, C.Fr.of_int i) @@ List.to_seq (input @ output)) proof
+    Verify.f vkey (Var.Map.of_seq @@ Seq.map (fun (v,i) -> v, Fr.of_int i) @@ List.to_seq (input @ output)) proof
   in
 
   prerr_endline "Veryfying with wrong out";
@@ -777,7 +561,7 @@ let protocol_test () =
     let input = [x, 10; Circuit.one, 1] in
     let output = [Circuit.out, 42] in
     try
-      Verify.f vkey (Var.Map.of_seq @@ Seq.map (fun (v,i) -> v, C.Fr.of_int i) @@ List.to_seq (input @ output)) proof;
+      Verify.f vkey (Var.Map.of_seq @@ Seq.map (fun (v,i) -> v, Fr.of_int i) @@ List.to_seq (input @ output)) proof;
       raise (Failure "Wot?")
     with
     | Assert_failure _ -> ()
@@ -788,25 +572,18 @@ let protocol_test () =
   let zcircuit = { circuit with mids = Var.Set.add x circuit.mids } in
   let ekey, vkey = KeyGen.generate rng zcircuit qap in
   let zkproof =
-    let sol = Result.get_ok @@ Circuit.eval [x, 10; Circuit.one, 1] circuit.gates in
+    let sol = Result.get_ok @@ Circuit.eval [x, Fr.of_int 10; Circuit.one, Fr.of_int 1] circuit.gates in
     let _p, h = QAP.eval sol qap in
     (* hide x *)
-    ZKCompute.f rng qap.target ekey (Var.Map.of_seq @@ Seq.map (fun (v,i) -> v, C.Fr.of_int i) @@ List.to_seq sol) h
+    ZKCompute.f rng qap.target ekey (Var.Map.of_list sol) h
   in
   let () =
     let ios = Circuit.ios zcircuit in
     assert (Var.Set.equal ios (Var.Set.of_list [Circuit.one; Circuit.out]));
     let input = [Circuit.one, 1] in
     let output = [Circuit.out, 1023] in
-    Verify.f vkey (Var.Map.of_seq @@ Seq.map (fun (v,i) -> v, C.Fr.of_int i) @@ List.to_seq (input @ output)) zkproof
+    Verify.f vkey (Var.Map.of_seq @@ Seq.map (fun (v,i) -> v, Fr.of_int i) @@ List.to_seq (input @ output)) zkproof
   in
   prerr_endline "PROTOCOL TEST done!"
 
-let test () =
-  let module QAPQ = QAP(Q) in
-  QAPQ.test ();
-
-  let module QAPBLS = QAP(Ecp.Bls12_381.Fr) in
-  QAPBLS.test ();
-
-  protocol_test ()
+let test () = protocol_test ()

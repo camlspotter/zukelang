@@ -33,4 +33,15 @@ module Map = struct
     of_seq (Seq.map (fun v -> v, f v) (Set.to_seq s))
 
   let domain m = Set.of_seq @@ Seq.map fst @@ to_seq m
+
+  let of_list s = of_seq @@ List.to_seq s
+end
+
+module Infix = struct
+  let (#!) l k =
+    match Map.find_opt k l with
+    | Some res -> res
+    | None ->
+        Format.ef "Variable %a not found@." pp k;
+        assert false
 end

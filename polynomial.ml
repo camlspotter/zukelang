@@ -11,13 +11,13 @@ module type S = sig
 
   type t = polynomial
 
-  include Printable with type t := t
+  val pp : t printer
 
   val zero : t
 
   val one : t
 
-  val gen : Random.State.t -> t
+  val gen : t Gen.t
 
   val apply : t -> f -> f
   (** Compute f(x) for the specified value of x *)
@@ -49,10 +49,10 @@ module type S = sig
   module Infix : sig
     val ( + ) : t -> t -> t
     val ( - ) : t -> t -> t
-    val ( ~- ) : t -> t
     val ( * ) : t -> t -> t
     val ( *$ ) : f -> t -> t
     val ( /% ) : t -> t -> t * t
+    val ( ~- ) : t -> t
   end
 end
 
@@ -98,7 +98,7 @@ module Make (A : Field.S) : S with type f = A.t = struct
     let rp = List.rev p in
     let rec loop = function
       | [] -> []
-      | x :: rp when A.equal x A.zero -> loop rp
+      | x :: rp when A.(x = zero) -> loop rp
       | rp -> rp
     in
     List.rev (loop rp)
@@ -114,7 +114,7 @@ module Make (A : Field.S) : S with type f = A.t = struct
   let sum = List.fold_left add zero
 
   let mul_scalar n p =
-    if A.equal n A.zero then [] else List.map A.(fun m -> n * m) p
+    if A.( n = zero ) then [] else List.map A.(fun m -> n * m) p
 
   let neg = List.map A.( ~- )
 
@@ -215,7 +215,7 @@ module Make (A : Field.S) : S with type f = A.t = struct
           @@ List.map (fun xi ->
                  let open A in
                  let xj_xi = xj - xi in
-                 assert (not @@ equal xj_xi zero) ;
+                 assert (not (xj_xi = zero)) ;
                  [~-xi / xj_xi; one / xj_xi]
                  (* (x - xi) / (xj - xi) *))
           @@ List.rev_append sx xs)
@@ -234,7 +234,7 @@ module Make (A : Field.S) : S with type f = A.t = struct
       let xys = List.map (fun (x, y) -> (q x, q y)) xys in
       let f = interpolate xys in
       ef "%a@." pp f ;
-      List.iter (fun (x, y) -> assert (A.equal (apply f x) y)) xys
+      List.iter (fun (x, y) -> assert A.(apply f x = y)) xys
     in
     test [(0, 1); (1, 2)] ;
     test [(0, 10); (3, 9)] ;
