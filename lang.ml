@@ -13,10 +13,6 @@ module Make(F : Field.S) = struct
     let pp ppf = function
       | Var s -> Var.pp ppf s
       | Num f -> F.pp ppf f
-
-    let conv fn = function
-      | Var _ as v -> v
-      | Num f -> Num (fn f)
   end
 
   module Expr = struct
