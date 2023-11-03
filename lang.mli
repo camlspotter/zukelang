@@ -4,7 +4,9 @@ type binop = Add | Mul
 
 module Make(F : Field.S) : sig
   module Term : sig
-    type term = Var of Var.t | Num of F.t
+    type term =
+      | Var of Var.t
+      | Num of F.t
 
     type t = term
 
@@ -13,15 +15,22 @@ module Make(F : Field.S) : sig
 
   module Expr : sig
 
-    type expr = Term of Term.t | BinApp of binop * expr * expr
+    type expr =
+      | Term of Term.t
+      | BinApp of binop * expr * expr
 
     type t = expr
 
     val pp : t printer
 
     val var : string -> t
+
     val num : F.t -> t
+
+    val int : int -> t
+
     val mul : t -> t -> t
+
     val add : t -> t -> t
 
     module Infix : sig
@@ -36,17 +45,18 @@ module Make(F : Field.S) : sig
   end
 
   module Flatten : sig
-
     type flatten = Var.t * binop * Term.t * Term.t
+    (** Flattened element: x = y op z *)
 
-    type t = flatten
+    type t = flatten list
+    (** Flattened code *)
 
     val pp : t printer
 
-    val flatten : Var.t * Expr.t -> t list
+    val flatten : Var.t * Expr.t -> t
 
-    val vars : t list -> Var.Set.t
+    val vars : t -> Var.Set.t
 
-    val eval : F.t Var.Map.t -> t list -> F.t Var.Map.t
+    val eval : F.t Var.Map.t -> t -> F.t Var.Map.t
   end
 end

@@ -32,7 +32,7 @@ module Make(F : Field.S) = struct
     let v =
       (* $v_k(r_g) = 1$ when gate $g$ has $c_k$ at the left of op *)
       make_matrix @@ fun k _g (l, _r) ->
-      match List.assoc_opt k l with
+      match Var.Map.find_opt k l with
       | None -> F.zero
       | Some n -> n
     in
@@ -40,7 +40,7 @@ module Make(F : Field.S) = struct
     let w =
       (* $w_k(r_g) = 1$ when gate $g$ has $c_k$ at the right of op *)
       make_matrix @@ fun k _g (_l, r) ->
-      match List.assoc_opt k r with
+      match Var.Map.find_opt k r with
       | None -> F.zero
       | Some n -> n
     in
@@ -103,33 +103,28 @@ module Make(F : Field.S) = struct
     let domy = dom y in
     assert (Var.Set.equal domv domw);
     assert (Var.Set.equal domv domy);
-    Format.(ef "dom: @[%a@]@." (list ",@ " Var.pp) (Var.Set.elements domv));
     Var.Map.of_list @@
-    Var.Map.fold (fun g r acc ->
+    Var.Map.fold (fun _g r acc ->
         let f v =
-          List.filter_map (fun (v, p) ->
+          Var.Map.filter_map (fun _v p ->
               let w = Polynomial.apply p r in
               if F.(w = zero) then None
-              else Some (v, w))
-          @@
-          Var.Map.bindings v
+              else Some w) v
         in
         let v = f v in
         let w = f w in
         let y = f y in
-        let pp = Format.(list " + " (fun ppf (v,i) -> f ppf "%a%a" F.pp i Var.pp v)) in
-        Format.ef "Gate %a : %a = (%a) * (%a)@." Var.pp g pp y pp v pp w;
-        match y with
+        match Var.Map.bindings y with
         | [y, f] when F.(one = f) -> (y, (v, w)) :: acc
         | _ -> assert false
       ) rs []
 
-  let eval (sol : (Var.t * F.t) list) { vwy;  target } =
+  let eval sol { vwy;  target } =
     let eval' (vps : Polynomial.t Var.Map.t) =
       Polynomial.sum
       @@ List.of_seq
       @@ Seq.map (fun (k, p) ->
-          let a = List.assoc k sol in
+          let a = sol #! k in
           Polynomial.mul_scalar a p)
       @@ Var.Map.to_seq vps
     in
@@ -159,10 +154,10 @@ module Make(F : Field.S) = struct
     let ({ vwy=_; target= t } as qap), _rk = build circuit.gates in
     let sol =
       Result.get_ok
-      @@ Circuit.eval [x, F.of_int 3;
-                       Circuit.one, F.of_int 1] circuit.gates
+      @@ Circuit.eval (Var.Map.of_list [x, F.of_int 3;
+                                        Circuit.one, F.of_int 1]) circuit.gates
     in
-    List.iter (fun (v,i) -> ef "%a = %a@." Var.pp v F.pp i) sol;
+    Var.Map.iter (fun v i -> ef "%a = %a@." Var.pp v F.pp i) sol;
     let p, _h = eval sol qap in
     ef "p = %a@." Polynomial.pp p;
     let h, rem = Polynomial.Infix.(p /% t) in

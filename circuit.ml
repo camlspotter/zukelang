@@ -16,7 +16,7 @@ module Make(F : Field.S) = struct
 
   module Gate = struct
     (* (2y + 3one) * (3z + 4w + 6one) *)
-    type gate = (Var.t * F.t) list * (Var.t * F.t) list
+    type gate = F.t Var.Map.t * F.t Var.Map.t
 
     type t = gate
 
@@ -24,14 +24,14 @@ module Make(F : Field.S) = struct
       let open Format in
       let f = fprintf in
       let pp_arg ppf xs =
-        Format.list " + "
+        Format.seq " + "
           (fun ppf (v, n) ->
              if v = one then
                F.pp ppf n
              else
                f ppf "%a%a" F.pp n Var.pp v)
           ppf
-          xs
+          @@ Var.Map.to_seq xs
       in
       f ppf "(%a) * (%a)"
         pp_arg l
@@ -42,11 +42,8 @@ module Make(F : Field.S) = struct
 
   let equal_gates gs1 gs2 =
     Var.Map.equal (fun (l1, r1) (l2, r2) ->
-        let l1 = List.sort compare l1 in
-        let r1 = List.sort compare r1 in
-        let l2 = List.sort compare l2 in
-        let r2 = List.sort compare r2 in
-        (l1, r1) = (l2, r2)) gs1 gs2
+        Var.Map.equal F.(=) l1 l2
+        && Var.Map.equal F.(=) r1 r2) gs1 gs2
 
   let pp_gates ppf (gates : gates) =
     let open Format in
@@ -70,21 +67,21 @@ module Make(F : Field.S) = struct
 
   let vars gates =
     Var.Map.fold (fun g (l,r) acc ->
-        let vs = g :: List.map fst l @ List.map fst r in
-        Var.Set.add_seq (List.to_seq vs) acc) gates Var.Set.empty
+        let vs = Var.Set.(add g (union (Var.Map.domain l) (Var.Map.domain r))) in
+        Var.Set.union vs acc) gates Var.Set.empty
 
-  let eval_gate_binding (env : (Var.t * _) list) (vns1, vns2) =
+  let eval_gate_binding env (vns1, vns2) =
     let open Option.Monad in
     let open F in
     let* a1 =
       Option.mapM (fun (v,n) ->
-          let+ a = List.assoc_opt v env in
-          a * n) vns1
+          let+ a = Var.Map.find_opt v env in
+          a * n) @@ Var.Map.bindings vns1
     in
     let+ a2 =
       Option.mapM (fun (v,n) ->
-          let+ a = List.assoc_opt v env in
-          a * n) vns2
+          let+ a = Var.Map.find_opt v env in
+          a * n) @@ Var.Map.bindings vns2
     in
     List.fold_left (+) zero a1
     * List.fold_left (+) zero a2
@@ -92,7 +89,7 @@ module Make(F : Field.S) = struct
   let eval env gates =
     let vars = vars gates in
     let unks =
-      List.fold_left (fun acc (v, _) -> Var.Set.remove v acc) vars env
+      Var.Map.fold (fun v _ acc -> Var.Set.remove v acc) env vars
     in
     let rec loop sol unks rev_fs fs =
       if Var.Set.is_empty unks then Ok sol
@@ -103,7 +100,7 @@ module Make(F : Field.S) = struct
             match eval_gate_binding sol (vns1, vns2) with
             | Some i ->
                 loop
-                  ((v, i) :: sol)
+                  (Var.Map.add v i sol)
                   (Var.Set.remove v unks)
                   []
                   (List.rev_append rev_fs fs)
@@ -171,27 +168,28 @@ module Make(F : Field.S) = struct
         mids := Var.Set.add v !mids;
         v
     in
-    let rec aux (e : Expr'.expr'') : (Var.t * F.t) * (Var.t * Gate.t) list =
+    let rec aux (e : Expr'.expr'') =
+      let open Var.Map in
       match e with
-      | Term (None, n) -> (one, n), []
-      | Term (Some v, n) -> (v, n), []
+      | Term (None, n) -> (one, n), empty
+      | Term (Some v, n) -> (v, n), empty
       | Mul (e1, e2) ->
           let sum1, gs1 =
             List.fold_left (fun (sum, gs) e ->
                 let (v,w), gs' = aux e in
-                ((v,w)::sum, gs @ gs')) ([], []) e1
+                (add v w sum, concat gs gs')) (empty, empty) e1
           in
           let sum2, gs2 =
             List.fold_left (fun (sum, gs) e ->
                 let (v,w), gs' = aux e in
-                ((v,w)::sum, gs @ gs')) ([], []) e2
+                (add v w sum, concat gs gs')) (empty, empty) e2
           in
           let v = mk_var () in
-          (v, F.one), (v, (sum1, sum2)) :: gs1 @ gs2
+          (v, F.one), add v (sum1, sum2) @@ concat gs1 gs2
     in
     let vns, gss = List.split @@ List.map aux e in
-    let gs = List.concat gss in
-    { gates = Var.Map.of_seq @@ List.to_seq ((out, (vns, [(one, F.one)])) :: gs);
+    let gs = List.fold_left Var.Map.concat Var.Map.empty gss in
+    { gates = Var.Map.add out (Var.Map.of_list vns, Var.Map.singleton one F.one) gs;
       mids= !mids }
 
   let of_expr (e : Expr.t) =

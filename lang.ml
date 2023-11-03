@@ -61,13 +61,12 @@ module Make(F : Field.S) = struct
   end
 
   module Flatten = struct
-    (** Looks like three-address code *)
-
+    (* Looks like three-address code *)
     type flatten = Var.t * binop * Term.t * Term.t
 
-    type t = flatten
+    type t = flatten list
 
-    let pp ppf (v, binop, t1, t2) =
+    let pp_flatten ppf (v, binop, t1, t2) =
       Format.fprintf
         ppf
         "%a = %a %s %a"
@@ -76,7 +75,9 @@ module Make(F : Field.S) = struct
         (match binop with Add -> "+" | Mul -> "*")
         Term.pp t2
 
-    let flatten (v, expr) : t list =
+    let pp ppf = Format.(f ppf "@[%a@]" (list "@," pp_flatten))
+
+    let flatten (v, expr) : t =
       let cntr = ref 0 in
       let mk_mid_var () =
         incr cntr ;

@@ -517,14 +517,14 @@ module Make(C : CURVE) = struct
 
     let prove (circuit : Circuit.t) qap ekey input =
       let sol = Result.get_ok @@ Circuit.eval input circuit.gates in
-      Format.(ef "@[<v>%a@]@." (list "@," (fun ppf (v,i) -> f ppf "%a = %a" Var.pp v Fr.pp i)) sol);
+      Format.(ef "@[<v>%a@]@." (Var.Map.pp Fr.pp) sol);
       let _p, h = QAP.eval sol qap in
-      Compute.f ekey (Var.Map.of_list sol) h
+      Compute.f ekey sol h
 
     let verify _circuit input output vkey proof =
       (* let ios = Circuit.ios circuit in *)
       (* assert (Var.Set.equal ios (Var.Set.of_list [x; Circuit.one; Circuit.out])); *)
-      Verify.f vkey (Var.Map.of_list (input @ output)) proof
+      Verify.f vkey (Var.Map.concat input output) proof
 
     let zkprepare e secret_input =
       let circuit = Circuit.of_expr e in
@@ -544,7 +544,7 @@ module Make(C : CURVE) = struct
       let rng = Random.State.make_self_init () in
       let sol = Result.get_ok @@ Circuit.eval input circuit.gates in
       let _p, h = QAP.eval sol qap in
-      ZKCompute.f rng qap.target ekey (Var.Map.of_list sol) h
+      ZKCompute.f rng qap.target ekey sol h
   end
 end
 
@@ -567,14 +567,14 @@ let test () =
 
   let circuit, qap, ekey, vkey = Test.prepare e in
 
-  let input = [x, Fr.of_int 10; Circuit.one, Fr.of_int 1] in
+  let input = Var.Map.of_list [x, Fr.of_int 10; Circuit.one, Fr.of_int 1] in
 
   let proof = Test.prove circuit qap ekey input in
 
-  assert (Test.verify circuit input [Circuit.out, Fr.of_int 1023] vkey proof);
+  assert (Test.verify circuit input (Var.Map.singleton Circuit.out (Fr.of_int 1023)) vkey proof);
 
   prerr_endline "Veryfying with wrong out";
-  assert (not @@ Test.verify circuit input [Circuit.out, Fr.of_int 42] vkey proof);
+  assert (not @@ Test.verify circuit input (Var.Map.singleton Circuit.out (Fr.of_int 42)) vkey proof);
 
   prerr_endline "VC done!";
 
@@ -582,7 +582,7 @@ let test () =
 
   let zkproof = Test.zkprove zkcircuit qap ekey input in
 
-  assert (Test.verify zkcircuit [Circuit.one, Fr.of_int 1] [Circuit.out, Fr.of_int 1023] vkey zkproof);
-  assert (not @@ Test.verify zkcircuit [Circuit.one, Fr.of_int 1] [Circuit.out, Fr.of_int 42] vkey zkproof);
+  assert (Test.verify zkcircuit (Var.Map.singleton Circuit.one (Fr.of_int 1)) (Var.Map.singleton Circuit.out (Fr.of_int 1023)) vkey zkproof);
+  assert (not @@ Test.verify zkcircuit (Var.Map.singleton Circuit.one (Fr.of_int 1)) (Var.Map.singleton Circuit.out (Fr.of_int 42)) vkey zkproof);
 
   prerr_endline "PROTOCOL TEST done!"

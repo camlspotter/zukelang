@@ -35,6 +35,14 @@ module Map = struct
   let domain m = Set.of_seq @@ Seq.map fst @@ to_seq m
 
   let of_list s = of_seq @@ List.to_seq s
+
+  let pp pp_a ppf m =
+    Format.(seq ",@ "
+              (fun ppf (v,a) -> f ppf "%a = %a" pp v pp_a a)
+              ppf
+            @@ to_seq m)
+
+  let concat a b = union (fun _ _ _ -> invalid_arg "concat") a b
 end
 
 module Infix = struct
