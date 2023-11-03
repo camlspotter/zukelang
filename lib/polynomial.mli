@@ -1,4 +1,4 @@
-open Utils
+open Misc
 
 type 'f polynomial = 'f list
 

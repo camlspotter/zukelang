@@ -1,6 +1,6 @@
 (* Elliptic Curve Pairings *)
 
-open Utils
+open Misc
 
 module type G = sig
   type t

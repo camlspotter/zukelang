@@ -1,3 +1,5 @@
+open Utils
+
 (** QAP triple *)
 type 'a vwy = { v : 'a; w : 'a; y : 'a }
 
