@@ -318,6 +318,12 @@ module Make(C : CURVE) = struct
          $v_{mid}(s)$ is really a linear combination of $\{v_k(s)\}$.
          Actually, $v_{mid}(s) = \Sigma_{k\in I_{mid}} c_k \cdot v_k(s)$
          $e(g_v^{v_{mid}(s)}, g^{\alpha_v}) = e(g_v^{\alpha_v v_{mid}(s)}, g)$
+
+         In the public information, the things multiplied by $\alpha_v$ are:
+           - $\{\alpha_v r_v v_k(s)\}$
+           - $\alpha_v r_v t(s)$
+         Since $t(s)$ is not public, the verifier can confirm that proof.vv
+         must be derived only from $r_v v_k(s)$.
       *)
       assert (e proof.vv vkey.av = e proof.vavv vkey.one2);
 
@@ -325,6 +331,12 @@ module Make(C : CURVE) = struct
          $w(s)$ is really a linear combination of $\{w_k(s)\}$.
          Actually, $w(s) = \Sigma_{k\in I_{mid}} c_k \cdot w_k(s)$
          $e(g^{\alpha_w}, g_w^{w_{mid}(s)}) = e(g, g_w^{\alpha_w w_{mid}(s)})$
+
+         In the public information, the things multiplied by $\alpha_w$ are:
+           - $\{\alpha_w r_w w_k(s)\}$
+           - $\alpha_w r_w t(s)$
+         Since $t(s)$ is not public, the verifier can confirm that proof.ww
+         must be derived only from $r_w w_k(s)$.
       *)
       assert (e vkey.aw proof.ww = e vkey.one proof.waww);
 
@@ -332,6 +344,12 @@ module Make(C : CURVE) = struct
          $y(s)$ is really a linear combination of $\{y_k(s)\}$.
          Actually, $y(s) = \Sigma_{k\in I_{mid}} c_k \cdot y_k(s)$
          $e(g_y^{y_{mid}(s)}, g^{\alpha_y}) = e(g_y^{\alpha_y y_{mid}(s)}, g)$
+
+         In the public information, the things multiplied by $\alpha_y$ are:
+           - $\{\alpha_y r_y y_k(s)\}$
+           - $\alpha_y r_y t(s)$
+         Since $t(s)$ is not public, the verifier can confirm that proof.yy
+         must be derived only from $r_y y_k(s)$.
       *)
       assert (e proof.yy vkey.ay = e proof.yayy vkey.one2);
 
@@ -348,6 +366,40 @@ module Make(C : CURVE) = struct
          $= e(g_v^{v_{mid}(s)}, g^{\beta \gamma})
              + e(g_w^{w_{mid}(s)}, g^{\beta \gamma})
              + e(g_y^{y_{mid}(s)}, g^{\beta \gamma})$
+
+         The above 3 KC checks for proof.vv, proof.ww, and proof.yy tell that
+         they are linear combinations of $\{*_k(s)\}$ with some sets of coefficients.
+
+         Now here we are going to prove that they are linear combinations of
+         the same coefficients.
+
+         If the test passes we have:
+
+            $\gamma{\tt proof.rvwk} = \gamma\beta({\tt vv} + {\tt ww} + {\tt yy})$
+
+         for some secret $\beta$ and $\gamma$.
+
+         Since $\beta$ is secret, only way for the prover to create a multiplication
+         of $\beta$ is to use the public values multiplied by $\beta$:
+
+           - $\{ \beta (r_v v_k(s) + r_w w_k(s) + r_y y_k(s)) \}_{k\in I_{mid}}$
+           - $\beta r_v t(s)$, $\beta r_w t(s)$, $\beta r_y t(s)$
+
+         For the RHS, the previous 3 KC checks shown that
+           - vv is a linear combination of $\{r_v v_k(s)\}$
+           - ww is a linear combination of $\{r_w w_k(s)\}$
+           - yy is a linear combination of $\{r_y y_k(s)\}$
+
+         Now we have
+
+         $\beta \{c_k\}\{ r_v v_k(s) + r_w w_k(s) + r_y y_k(s) \}
+          + \beta ( c_1 r_v + c_2 r_w + c_3 r_y ) t(s)$
+          $= c_v \{r_v v_k(s)\}
+          + c_w \{r_v v_k(s)\}
+          + c_y \{r_v v_k(s)\}$
+
+         Since $r_vv_k(s)$, $r_ww_k(s)$, $r_yy_k(s)$, $t(s)$ are unrelated, the only possible way
+         to make this equation hold is $c_k = c_v = c_w = c_y$ and $c_1r_v + c_wr_w + c_3r_y = 0$.
       *)
       assert (
           e proof.bvwy vkey.gm2
