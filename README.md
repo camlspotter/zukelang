@@ -1,7 +1,11 @@
-zk.ml: Rough OCaml implementation of:
-* https://medium.com/@VitalikButerin/quadratic-arithmetic-programs-from-zero-to-hero-f6d558cea649
+# OCaml implemetation of ZK algorithms
 
-pairing.ml: Rough OCaml implementation of:
+## `pinocchio/`
 
-* https://medium.com/@VitalikButerin/exploring-elliptic-curve-pairings-c73c1864e627
-* https://qiita.com/herumi/items/e69721380278c5a30d01
+Protocol 2 of [Pinochio: Nearly Practical Verifiable Computation](https://eprint.iacr.org/2013/279.pdf) 
+
+- No optimization such as polynomial multiplication using fast DFT
+
+```
+% dune exec pinocchio/main.exe
+```
