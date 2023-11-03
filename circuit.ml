@@ -54,6 +54,8 @@ module Make(F : Field.S) = struct
 
   type circuit =
     { gates : Gate.t Var.Map.t;
+      input : Var.Set.t;
+      output: Var.Set.t;
       mids : Var.Set.t
     }
 
@@ -126,39 +128,51 @@ module Make(F : Field.S) = struct
       | Term (None, n) -> F.pp ppf n
       | Term (Some v, n) -> f ppf "%a%a" F.pp n Var.pp v
       | Mul (e1, e2) -> f ppf "@[(%a) * (%a)@]" pp_expr' e1 pp_expr' e2
+
+    let vars e' =
+      let open Var.Set in
+      let rec f'' = function
+        | Term (Some v, _) -> singleton v
+        | Term (None, _) -> empty
+        | Mul (e'1, e'2) -> union (f' e'1) (f' e'2)
+      and f' e''s =
+        List.fold_left (fun acc e'' -> union acc (f'' e'')) empty e''s
+      in
+      f' e'
+
+    let rec expr' (e : Expr.t) : expr' =
+      match e with
+      | Term (Num n) -> [Term (None, n)]
+      | Term (Var v) -> [Term (Some v, F.one)]
+      | BinApp (Mul, e1, e2) ->
+          let e1 = expr' e1 in
+          let e2 = expr' e2 in
+          [Mul (e1, e2)]
+      | BinApp (Add, e1, e2) ->
+          let es = expr' e1 @ expr' e2 in
+          let terms, muls =
+            List.partition_map (function
+                | Term (vo,n) -> Left (vo,n)
+                | Mul _ as e -> Right e) es
+          in
+          let terms =
+            let module Map = Map.Make(struct
+                type t = Var.t option
+                let compare = compare
+              end)
+            in
+            Map.bindings @@
+            List.fold_left (fun acc (vo,n) ->
+                Map.update vo (function
+                    | None -> Some n
+                    | Some n' -> Some F.(n+n')) acc)
+              Map.empty terms
+          in
+          List.map (fun (vo,n) -> Term (vo,n)) terms @ muls
   end
 
-  let rec expr' (e : Expr.t) : Expr'.expr' =
-    match e with
-    | Term (Num n) -> [Term (None, n)]
-    | Term (Var v) -> [Term (Some v, F.one)]
-    | BinApp (Mul, e1, e2) ->
-        let e1 = expr' e1 in
-        let e2 = expr' e2 in
-        [Mul (e1, e2)]
-    | BinApp (Add, e1, e2) ->
-        let es = expr' e1 @ expr' e2 in
-        let terms, muls =
-          List.partition_map (function
-              | Expr'.Term (vo,n) -> Left (vo,n)
-              | Mul _ as e -> Right e) es
-        in
-        let terms =
-          let module Map = Map.Make(struct
-              type t = Var.t option
-              let compare = compare
-            end)
-          in
-          Map.bindings @@
-          List.fold_left (fun acc (vo,n) ->
-              Map.update vo (function
-                  | None -> Some n
-                  | Some n' -> Some F.(n+n')) acc)
-            Map.empty terms
-        in
-        List.map (fun (vo,n) -> Expr'.Term (vo,n)) terms @ muls
-
   let build (e : Expr'.expr') =
+    let input = Expr'.vars e in
     let mids = ref Var.Set.empty in
     let mk_var =
       let cntr = ref 0 in
@@ -190,10 +204,12 @@ module Make(F : Field.S) = struct
     let vns, gss = List.split @@ List.map aux e in
     let gs = List.fold_left Var.Map.concat Var.Map.empty gss in
     { gates = Var.Map.add out (Var.Map.of_list vns, Var.Map.singleton one F.one) gs;
+      input;
+      output = Var.Set.singleton out;
       mids= !mids }
 
   let of_expr (e : Expr.t) =
-    let e' = expr' e in
+    let e' = Expr'.expr' e in
     build e'
 
   let ios t =
@@ -209,7 +225,7 @@ module Make(F : Field.S) = struct
     let open Format in
     ef "----------------@.";
     ef "Expr: %a@." Expr.pp e;
-    let e' = expr'  e in
+    let e' = Expr'.expr'  e in
     ef "Expr': %a@." Expr'.pp_expr' e';
     let t = build e' in
     ef "Gates: @[<v>%a@]@." pp t

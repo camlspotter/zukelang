@@ -25,6 +25,8 @@ module Make(F : Field.S) : sig
 
   type circuit =
     { gates : Gate.t Var.Map.t; (** Gates with the output variables *)
+      input : Var.Set.t;
+      output : Var.Set.t;
       mids : Var.Set.t; (** Intermediate variables *)
     }
 
