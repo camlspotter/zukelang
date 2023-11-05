@@ -6,30 +6,16 @@
 open Utils
 open Var.Infix (* for (#!) *)
 
-module type CURVE = sig
-  module Fr : sig
-    include Field.S
-    val ( ** ) : t -> Z.t -> t
-    val gen : t Gen.t
-  end
-  module G1 : Ecp.G with type fr := Fr.t
-  module G2 : Ecp.G with type fr := Fr.t
-  module GT : Ecp.G with type fr := Fr.t
-  module Pairing : sig
-    val pairing : G1.t -> G2.t -> GT.t
-  end
-end
-
-module Make(C : CURVE) = struct
+module Make(C : Ecp.CURVE) = struct
 
   (* open, not include.
      [include C] instead opens the gate to the module typing hell *)
   open C
 
   module Polynomial = Polynomial.Make(C.Fr)
-  module Lang = Lang.Make(C.Fr)
-  module Circuit = Circuit.Make(C.Fr)
-  module QAP = QAP.Make(C.Fr)
+  module Lang       = Lang.Make(C.Fr)
+  module Circuit    = Circuit.Make(C.Fr)
+  module QAP        = QAP.Make(C.Fr)
 
   type expr = Lang.Expr.t
 
@@ -66,7 +52,7 @@ module Make(C : CURVE) = struct
         i, G.of_Fr s'i)
 
   (* $\Sigma_i c_i x^i$ *)
-  let apply_powers (type t) (module G : G with type t = t) (cs : Polynomial.t)  xis =
+  let apply_powers (type t) (module G : G with type t = t) (cs : Polynomial.t) xis =
     let open G in
     sum @@
     List.mapi (fun i c ->

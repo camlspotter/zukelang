@@ -1,20 +1,6 @@
 open Utils
 
-module type CURVE = sig
-  module Fr : sig
-    include Field.S
-    val ( ** ) : t -> Z.t -> t
-    val gen : t Gen.t
-  end
-  module G1 : Ecp.G with type fr := Fr.t
-  module G2 : Ecp.G with type fr := Fr.t
-  module GT : Ecp.G with type fr := Fr.t
-  module Pairing : sig
-    val pairing : G1.t -> G2.t -> GT.t
-  end
-end
-
-module Make(C : CURVE) : sig
+module Make(C : Ecp.CURVE) : sig
   type expr = Lang.Make(C.Fr).Expr.t
   type circuit = Circuit.Make(C.Fr).t
   type qap = QAP.Make(C.Fr).t
