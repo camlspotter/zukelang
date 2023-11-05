@@ -18,6 +18,21 @@ module type G = sig
   val pp : t printer
 end
 
+module type CURVE = sig
+  module Fr : sig
+    include Field.S
+    include G with type t := t and type fr := t
+    val ( ** ) : t -> Z.t -> t
+    val gen : t Gen.t
+  end
+  module G1 : G with type fr := Fr.t
+  module G2 : G with type fr := Fr.t
+  module GT : G with type fr := Fr.t
+  module Pairing : sig
+    val pairing : G1.t -> G2.t -> GT.t
+  end
+end
+
 module Bls12_381 = struct
 
   (* extend Bls12_381 with some printers *)
@@ -33,6 +48,7 @@ module Bls12_381 = struct
       let of_q q = of_z q.Q.num / of_z q.Q.den
       let sum = List.fold_left (+) zero
       let gen rng = random ~state:rng ()
+      let of_Fr = Fun.id
     end
     include Fr
     module Poly = struct
