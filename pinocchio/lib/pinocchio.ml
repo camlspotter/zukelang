@@ -3,9 +3,6 @@
    Protocol 1 is not for ordinary QAP.
 *)
 
-module Circuit = Circuit
-module QAP = QAP
-
 open Utils
 open Var.Infix (* for (#!) *)
 
@@ -15,10 +12,10 @@ module Make(C : Ecp.CURVE) = struct
      [include C] instead opens the gate to the module typing hell *)
   open C
 
-  module Polynomial = Polynomial.Make(C.Fr)
-  module Lang       = Lang.Make(C.Fr)
-  module Circuit    = Circuit.Make(C.Fr)
-  module QAP        = QAP.Make(C.Fr)
+  module Poly    = Fr.Poly
+  module Lang    = Lang.Make(C.Fr)
+  module Circuit = Circuit.Make(C.Fr)
+  module QAP     = QAP.Make(C.Fr)
 
   type expr = Lang.Expr.t
 
@@ -55,7 +52,7 @@ module Make(C : Ecp.CURVE) = struct
         i, G.of_Fr s'i)
 
   (* $\Sigma_i c_i x^i$ *)
-  let apply_powers (type t) (module G : G with type t = t) (cs : Polynomial.t) xis =
+  let apply_powers (type t) (module G : G with type t = t) (cs : Poly.t) xis =
     let open G in
     sum @@
     List.mapi (fun i c ->
@@ -115,7 +112,7 @@ module Make(C : Ecp.CURVE) = struct
       let imid (* $I_{mid}$ *) = circuit.mids in
       let n (* $[N]$ *) = Circuit.ios circuit in
       let m (* [m] *) = Circuit.vars circuit.gates in
-      let d = Polynomial.degree t in
+      let d = Poly.degree t in
 
       let rv (* $r_v$ *)      = Fr.gen rng in
       let rw (* $r_w$ *)      = Fr.gen rng in
@@ -135,13 +132,13 @@ module Make(C : Ecp.CURVE) = struct
       let gy (* $g_y$ *)      = G1.of_Fr ry in
       let gy2                 = G2.of_Fr ry in
 
-      let t = Polynomial.apply t s in
+      let t = Poly.apply t s in
 
       (* $\{ g_u^{u_k(s)} \}_{k\in I_{set}}$ *)
       let map_apply_s (type t) (module G : G with type t = t) gu u set =
         Var.Map.of_set set @@ fun k ->
         let uk = u #! k in
-        let uks = Polynomial.apply uk s in
+        let uks = Poly.apply uk s in
         G.(gu * uks)
       in
 
@@ -239,7 +236,7 @@ module Make(C : Ecp.CURVE) = struct
         bvwy : G1.t; (* $g_v^{\beta v_{mid}(s)} g_w^{\beta w_{mid}(s)} g_y^{\beta y_{mid}(s)}$ *)
       }
 
-    let f (ekey : KeyGen.ekey) (sol : Fr.t Var.Map.t) (h_poly : Polynomial.t) =
+    let f (ekey : KeyGen.ekey) (sol : Fr.t Var.Map.t) (h_poly : Poly.t) =
       let c = sol in
       let mid = Var.Map.domain ekey.vv in
       let c_mid = Var.Map.filter (fun v _ -> Var.Set.mem v mid) c in
@@ -456,7 +453,7 @@ module Make(C : Ecp.CURVE) = struct
 
     open Compute
 
-    let f rng (target : Polynomial.t) (ekey : KeyGen.ekey) (sol : Fr.t Var.Map.t) (h_poly : Polynomial.t) =
+    let f rng (target : Poly.t) (ekey : KeyGen.ekey) (sol : Fr.t Var.Map.t) (h_poly : Poly.t) =
       let dv (* $\delta_v$ *) = Fr.gen rng in
       let dw (* $\delta_w$ *) = Fr.gen rng in
       let dy (* $\delta_y$ *) = Fr.gen rng in

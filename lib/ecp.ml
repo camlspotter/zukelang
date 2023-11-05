@@ -24,6 +24,7 @@ module type CURVE = sig
     include G with type t := t and type fr := t
     val ( ** ) : t -> Z.t -> t
     val gen : t Gen.t
+    module Poly : Polynomial.S with type f = t
   end
   module G1 : G with type fr := Fr.t
   module G2 : G with type fr := Fr.t

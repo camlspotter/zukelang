@@ -3,7 +3,7 @@ open Utils
 include Groth16.Make(Ecp.Bls12_381)
 
 module Lang = Lang.Make(Ecp.Bls12_381.Fr)
-module Circuit = Pinocchio.Circuit.Make(Ecp.Bls12_381.Fr)
+module Circuit = Circuit.Make(Ecp.Bls12_381.Fr)
 
 open Ecp.Bls12_381
 

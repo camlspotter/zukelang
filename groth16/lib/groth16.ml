@@ -5,10 +5,11 @@ open Utils
 module Make(C : Ecp.CURVE) = struct
   open C
 
+  module Poly = Fr.Poly
+
   module type G = Ecp.G with type fr := Fr.t
 
-  module Polynomial = Polynomial.Make(Fr)
-  module QAP = Pinocchio.QAP.Make(Fr)
+  module QAP = QAP.Make(Fr)
 
   open Var.Infix
 
@@ -44,7 +45,7 @@ module Make(C : Ecp.CURVE) = struct
         i, G.of_Fr s'i)
 
     (* $\Sigma_i c_i x^i$ *)
-  let apply_powers (type t) (module G : G with type t = t) (cs : Polynomial.t) xis =
+  let apply_powers (type t) (module G : G with type t = t) (cs : Poly.t) xis =
     let open G in
     sum @@
     List.mapi (fun i c ->
@@ -72,7 +73,7 @@ module Make(C : Ecp.CURVE) = struct
       Var.Map.mapi (fun i pa ->
           let pb = pB #! i in
           let pc = pC #! i in
-          let open Polynomial.Infix in
+          let open Poly.Infix in
           b *$ pa + a *$ pb + pc) pA
     in
 
@@ -84,11 +85,11 @@ module Make(C : Ecp.CURVE) = struct
         (* Ll+1(τ)/δ, Ll+2(τ)/δ, ..., Lm(τ)/δ *)
         (* v_mid carries [l+1..m] vars *)
         Var.Map.map (fun lk (* Lk(x) *) ->
-            g1 Fr.(Polynomial.apply lk t / d) (* Lk(τ)/δ *)
+            g1 Fr.(Poly.apply lk t / d) (* Lk(τ)/δ *)
           ) @@ Var.Map.filter (fun v _ -> Var.Set.mem v v_mid) l
       and tiztd =
         (* {τ^i*Z(τ)/δ} i∈ [0,n-2] *)
-        let ztd (* Z(τ)/δ *) = Fr.(Polynomial.apply z t / d) in
+        let ztd (* Z(τ)/δ *) = Fr.(Poly.apply z t / d) in
         List.init (n-1) (fun i ->
             i,
             g1 Fr.((t ** Z.of_int i) * ztd))
@@ -106,7 +107,7 @@ module Make(C : Ecp.CURVE) = struct
         (* {Li(τ)/γ} i∈[0..l] *)
         (* v_io carries [0..l] vars *)
         Var.Map.map (fun lk ->
-            g1 Fr.(Polynomial.apply lk t / gm)
+            g1 Fr.(Poly.apply lk t / gm)
           ) @@ Var.Map.filter (fun v _ -> Var.Set.mem v v_io) l
       and one2 (* g^1 *)  = G2.one
       and gm   (* γ *)   = g2 gm
@@ -226,7 +227,7 @@ module Make(C : Ecp.CURVE) = struct
   *)
 
   module Lang = Lang.Make(Fr)
-  module Circuit = Pinocchio.Circuit.Make(C.Fr)
+  module Circuit = Circuit.Make(C.Fr)
 
   module API = struct
 
@@ -259,7 +260,7 @@ module Make(C : Ecp.CURVE) = struct
 
     let keygen (circuit : Circuit.t) (qap : QAP.t) =
       let z (* Z(x) *) = qap.target in
-      let d = Polynomial.degree z in
+      let d = Poly.degree z in
       let ekey, vkey =
         let rng = Random.State.make_self_init () in
         setup rng (Var.Set.union circuit.input circuit.output) circuit.mids d qap
