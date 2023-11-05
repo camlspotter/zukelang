@@ -3,6 +3,9 @@
    Protocol 1 is not for ordinary QAP.
 *)
 
+module Circuit = Circuit
+module QAP = QAP
+
 open Utils
 open Var.Infix (* for (#!) *)
 
@@ -551,49 +554,71 @@ module Make(C : Ecp.CURVE) = struct
 
     type proof = Compute.proof
 
-    let compile e =
-      let circuit = Circuit.of_expr e in
+    module NonZK = struct
+      let compile e =
+        let circuit = Circuit.of_expr e in
+        let qap, rk = QAP.build circuit.gates in
+
+        (* decompilation test *)
+        let gates = QAP.decompile qap rk in
+        assert (Circuit.equal_gates circuit.gates gates);
+
+        circuit, qap
+
+      let keygen circuit qap =
+        let ekey, vkey =
+          let rng = Random.State.make_self_init () in
+          KeyGen.generate rng circuit qap
+        in
+        ekey, vkey
+
+      let solve (circuit : Circuit.t) input =
+        let input = Var.Map.add Circuit.one (Fr.of_int 1) input in
+        Result.get_ok @@ Circuit.eval input circuit.gates
+
+      let output_of_solution (circuit : Circuit.t) sol =
+        Var.Map.filter (fun v _ -> Var.Set.mem v circuit.output) sol
+
+      let prove qap ekey sol =
+        let _p, h = QAP.eval sol qap in
+        Compute.f ekey sol h
+
+      let verify input_output vkey proof =
+        let input_output = Var.Map.add Circuit.one (Fr.of_int 1) input_output in
+        Verify.f vkey input_output proof
+    end
+
+
+    module ZK = struct
+      let compile e ~secret =
+        let circuit = Circuit.of_expr e in
+        let circuit =
+          { circuit with
+            input = Var.Set.diff circuit.input secret;
+            mids = Var.Set.union circuit.mids secret }
+      in
       let qap, rk = QAP.build circuit.gates in
 
       (* decompilation test *)
       let gates = QAP.decompile qap rk in
       assert (Circuit.equal_gates circuit.gates gates);
-
       circuit, qap
 
-    let keygen circuit qap =
-      let ekey, vkey =
+      let keygen = NonZK.keygen
+
+      let solve (circuit : Circuit.t) ~public ~secret =
+        let input = Var.Map.concat public secret in
+        NonZK.solve circuit input
+
+      let output_of_solution = NonZK.output_of_solution
+
+      let prove qap ekey sol =
         let rng = Random.State.make_self_init () in
-        KeyGen.generate rng circuit qap
-      in
-      ekey, vkey
+        let _p, h = QAP.eval sol qap in
+        ZKCompute.f rng qap.target ekey sol h
 
-    let solve (circuit : Circuit.t) input =
-      let input = Var.Map.add Circuit.one (Fr.of_int 1) input in
-      Result.get_ok @@ Circuit.eval input circuit.gates
-
-    let output_of_solution (circuit : Circuit.t) sol =
-      Var.Map.filter (fun v _ -> Var.Set.mem v circuit.output) sol
-
-    let prove qap ekey sol =
-      let _p, h = QAP.eval sol qap in
-      Compute.f ekey sol h
-
-    let verify input_output vkey proof =
-      let input_output = Var.Map.add Circuit.one (Fr.of_int 1) input_output in
-      Verify.f vkey input_output proof
-
-    let zkkeygen (circuit : Circuit.t) qap secret_input =
-      let circuit =
-        { circuit
-          with mids = Var.Set.union circuit.mids secret_input }
-      in
-      keygen circuit qap
-
-    let zkprove qap ekey sol =
-      let rng = Random.State.make_self_init () in
-      let _p, h = QAP.eval sol qap in
-      ZKCompute.f rng qap.target ekey sol h
+      let verify = NonZK.verify
+    end
   end
 
   include API
@@ -617,40 +642,31 @@ let test () =
   in
 
   (* VC *)
-
-  let circuit, qap = API.compile e in
-
-  let ekey, vkey = API.keygen circuit qap in
-
-  let input = Var.Map.of_list [x, Fr.of_int 10] in
-
-  let sol = API.solve circuit input in
-
-  let output = API.output_of_solution circuit sol in
-
-  let proof = API.prove qap ekey sol in
-
-  assert (API.verify (Var.Map.concat input output) vkey proof);
-
-  let wrong_output = Var.Map.singleton Circuit.out (Fr.of_int 42) in
-  assert (not @@ API.verify (Var.Map.concat input wrong_output) vkey proof);
+  let () =
+    let open API.NonZK in
+    let circuit, qap = compile e in
+    let ekey, vkey = keygen circuit qap in
+    let input = Var.Map.of_list [x, Fr.of_int 10] in
+    let sol = solve circuit input in
+    let output = output_of_solution circuit sol in
+    let proof = prove qap ekey sol in
+    assert (verify (Var.Map.concat input output) vkey proof);
+    let wrong_output = Var.Map.singleton Circuit.out (Fr.of_int 42) in
+    assert (not @@ verify (Var.Map.concat input wrong_output) vkey proof);
+  in
 
   (* VC with ZK *)
-
-  let ekey, vkey = API.zkkeygen circuit qap (Var.Set.singleton x) in
-
-  let proof = API.zkprove qap ekey sol in
-
-  assert (API.verify output vkey proof);
-  assert (not @@ API.verify wrong_output vkey proof);
-
-  (* VC using ZK version *)
-
-  let ekey, vkey = API.zkkeygen circuit qap Var.Set.empty in
-
-  let proof = API.zkprove qap ekey sol in
-
-  assert (API.verify (Var.Map.concat input output) vkey proof);
-  assert (not @@ API.verify (Var.Map.concat input wrong_output) vkey proof);
+  let () =
+    let open API.ZK in
+    let circuit, qap = compile e ~secret: (Var.Set.singleton x) in
+    let ekey, vkey = keygen circuit qap in
+    let secret = Var.Map.of_list [x, Fr.of_int 10] in
+    let sol = solve circuit ~public:Var.Map.empty ~secret in
+    let output = output_of_solution circuit sol in
+    let proof = prove qap ekey sol in
+    assert (verify output vkey proof);
+    let wrong_output = Var.Map.singleton Circuit.out (Fr.of_int 42) in
+    assert (not @@ verify wrong_output vkey proof)
+  in
 
   prerr_endline "Pinocchio test done!"
