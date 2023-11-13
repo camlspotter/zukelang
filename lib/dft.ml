@@ -140,32 +140,29 @@ module W(N : sig val n : int end) = struct
 end
 
 (* https://faculty.sites.iastate.edu/jia/files/inline-files/polymultiply.pdf *)
-let dft a n (* must be $n = 2^m$ *) =
+let dft a (* must be $n = 2^m$ *) =
+  let n = Array.length a in
   let module W = W(struct let n = n end) in
   let n0 = n in
-  let rec loop a n =
-    assert (List.length a = n);
+  let n02 = n0 / 2 in
+  let rec loop a =
+    let n = Array.length a in
     if n = 1 then a
     else
-      let a0, a1 =
-        let rec split = function
-          | [] -> [], []
-          | [_] -> assert false
-          | x0::x1::xs ->
-              let a0, a1 = split xs in
-              x0::a0, x1::a1
-        in
-        split a
-      in
+      let (#!) = Array.unsafe_get in
+      let a0 = Array.init (n/2) (fun i -> a #! (i*2)) in
+      let a1 = Array.init (n/2) (fun i -> a #! (i*2+1)) in
+      let a'0 = loop a0 in
+      let a'1 = loop a1 in
       let n2 = n / 2 in
-      let a'0 = loop a0 n2 in
-      let a'1 = loop a1 n2 in
-      let a'01 = List.combine a'0 a'1 in
-      let a'l = List.mapi (fun k (a'0k, a'1k) -> W.add a'0k (W.rot (k * n0 / n) a'1k)) a'01 in
-      let a'r = List.mapi (fun k (a'0k, a'1k) -> W.add a'0k (W.rot (k * n0 / n + n0 / 2) a'1k)) a'01 in
-      a'l @ a'r
+      Array.init n (fun k ->
+          if k < n2 then
+            W.add (a'0 #! k) (W.rot (k * n0 / n) (a'1 #! k))
+          else
+            let k = k - n2 in
+            W.add (a'0 #! k) (W.rot (k * n0 / n + n02) (a'1 #! k)))
   in
-  loop a n
+  loop a
 
 let idft a' n (* must be $n = 2^m$ *) =
   let module W = W(struct let n = n end) in
@@ -200,11 +197,11 @@ let test_fft f =
   let n (* $N$ *) = 1 lsl (int_of_float @@ ceil @@ log2 (float (d + 1))) in
   let f = f @ List.init (n-d-1) (fun _ -> Q.zero) in
   let module W = W(struct let n = n end) in
-  let a = List.map (fun c -> W.singleton 0 c) f in
-  let a' = dft a n in
-  List.iteri (fun k m -> Format.ef "%d: @[%a@]@." k W.pp m) a';
+  let a = Array.map (fun c -> W.singleton 0 c) @@ Array.of_list f in
+  let a' = dft a in
+  Array.iteri (fun k m -> Format.ef "%d: @[%a@]@." k W.pp m) a';
   prerr_endline "Inverse";
-  let a_ = idft a' n in
+  let a_ = idft (Array.to_list a') n in
   List.iteri (fun k m -> Format.ef "%d: @[%a@]@." k W.pp m) a_
 
 let test () =
