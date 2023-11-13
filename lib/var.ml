@@ -43,6 +43,8 @@ module Map = struct
             @@ to_seq m)
 
   let concat a b = union (fun _ _ _ -> invalid_arg "concat") a b
+
+  let restrict s = filter (fun v _ -> Set.mem v s)
 end
 
 module Infix = struct

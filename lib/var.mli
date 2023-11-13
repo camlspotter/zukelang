@@ -26,6 +26,8 @@ module Map : sig
 
   val concat : 'a t -> 'a t -> 'a t
   (** Fails at a collision *)
+
+  val restrict : Set.t -> 'a t -> 'a t
 end
 
 module Infix : sig
