@@ -28,40 +28,6 @@ module Make(C : Ecp.CURVE) = struct
   let g1 = (module G1 : G with type t = C.G1.t)
   let g2 = (module G2 : G with type t = C.G2.t)
 
-  (* $ \Sigma_{k\in Dom(m)} f(k,m_k) $ *)
-  let sum_map (type t) (module G : G with type t = t) m f =
-    let open G in
-    Var.Map.fold (fun k v acc -> f k v + acc) m zero
-
-  (* $ \Sigma_{k\in Dom(m)} m_k \cdot c_k$ *)
-  let dot (type t) (module G : G with type t = t) m c =
-    if not (Var.Set.equal (Var.Map.domain m) (Var.Map.domain c)) then begin
-      prerr_endline "Domain mismatch";
-      Format.(ef "m : %a@.c : %a@." Var.Set.pp (Var.Map.domain m) Var.Set.pp (Var.Map.domain c));
-      assert false
-    end;
-    sum_map (module G) m (fun k mk ->
-        let open G in
-        let ck = c #! k in
-        mk * ck)
-
-  (* $\{ g^s^i \}_{i\in[d]}$ *)
-  let powers (type t) (module G : G with type t = t) d s =
-    List.init (d+1) (fun i ->
-        let s'i = Fr.(s ** Z.of_int i) in
-        i, G.of_Fr s'i)
-
-  (* $\Sigma_i c_i x^i$ *)
-  let apply_powers (type t) (module G : G with type t = t) (cs : Poly.t) xis =
-    let open G in
-    sum @@
-    List.mapi (fun i c ->
-        let xi = List.assoc i xis in
-        xi * c) cs
-
-  (* $\{\alpha x_k\}_k$ *)
-  let mul_map (type t) (module G : G with type t = t) m a = Var.Map.map (fun g -> G.(g * a)) m
-
   module KeyGen = struct
 
     (* The paper uses symmetric groups: e : $G_1 = G_2$.  Here we use BLS12-381
@@ -75,11 +41,11 @@ module Make(C : Ecp.CURVE) = struct
         vav   : G1.t Var.Map.t; (* $\{ g_v^{\alpha_v v_k(s)} \}_{k\in I_{mid}}$ *)
         waw   : G2.t Var.Map.t; (* $\{ g_w^{\alpha_w w_k(s)} \}_{k\in I_{mid}}$ *)
         yay   : G1.t Var.Map.t; (* $\{ g_y^{\alpha y_k(s)} \}_{k\in I_{mid}}$ *)
-        si    : (int * G1.t) list; (* $\{ g_1^{s^i} \}_{i\in[d]}$ *)
+        si    : G1.t list; (* $\{ g_1^{s^i} \}_{i\in[d]}$ *)
         bvwy  : G1.t Var.Map.t; (* $\{ g_v^{\beta v_k(s)} g_w^{\beta w_k(s)} g_y^{\beta y_k(s)} \}_{k\in I_{mid}}$ *)
 
         (* Required for ZK *)
-        si2   : (int * G2.t) list; (* $\{ g_1^{s^i} \}_{i\in[d]}$ *)
+        si2   : G2.t list; (* $\{ g_1^{s^i} \}_{i\in[d]}$ *)
         vt    : G1.t; (* $g_v^{t(s)}$ *)
         wt    : G2.t; (* $g_w^{t(s)}$ *)
         yt    : G1.t; (* $g_y^{t(s)}$ *)
@@ -151,6 +117,11 @@ module Make(C : Ecp.CURVE) = struct
         (* $\{ g_y^{y_k(s)} \}_{k\in I_{mid}}$ *)
         let yy = map_apply_s g1 gy vwy.y imid in
 
+        (* $\{\alpha x_k\}_k$ *)
+        let mul_map (type t) (module G : G with type t = t) m a =
+          Var.Map.map (fun g -> G.(g * a)) m
+        in
+
         (* $\{ g_v^{\alpha_v v_k(s)} \}_{k\in I_{mid}}$ *)
         let vav = mul_map g1 vv av in
         (* $\{ g_w^{\alpha_w w_k(s)} \}_{k\in I_{mid}}$ *)
@@ -159,8 +130,8 @@ module Make(C : Ecp.CURVE) = struct
         let yay = mul_map g1 yy ay in
 
         (* $\{ g^s^i \}_{i\in[d]}$ *)
-        let si = powers g1 d s in
-        let si2 = powers g2 d s in
+        let si = G1.powers d s in
+        let si2 = G2.powers d s in
 
         (* $\{ g_v^{\beta v_k(s)} g_w^{\beta w_k(s)} g_y^{\beta y_k(s)} \}_{k\in I_{mid}}$ *)
         let bvwy =
@@ -242,28 +213,28 @@ module Make(C : Ecp.CURVE) = struct
       let c_mid = Var.Map.filter (fun v _ -> Var.Set.mem v mid) c in
 
       (* $v_{mid}(s) = \Sigma_{k\in I_{mid}} c_k \cdot v_k(s)$ *)
-      let vv (* $g_v^{v_{mid}(s)}$ *) = dot g1 ekey.vv c_mid in
+      let vv (* $g_v^{v_{mid}(s)}$ *) = G1.dot ekey.vv c_mid in
 
       (* $w(s) = \Sigma_{k\in [m]} c_k \cdot w_k(s)$ *)
-      let ww (* $g_w^{w_{mid}(s)}$ *) = dot g2 ekey.ww c_mid in
+      let ww (* $g_w^{w_{mid}(s)}$ *) = G2.dot ekey.ww c_mid in
 
       (* $y(s) = \Sigma_{k\in [m]} c_k \cdot y_k(s)$ *)
-      let yy (* $g_y^{y_{mid}(s)}$ *) = dot g1 ekey.yy c_mid in
+      let yy (* $g_y^{y_{mid}(s)}$ *) = G1.dot ekey.yy c_mid in
 
       (* $h(s) = h_0 + h_1  s + h_2  s^2 + .. + h_d  s^d$ *)
-      let h (* $g^{h(s)}$ *) = apply_powers g1 h_poly ekey.si in
+      let h (* $g^{h(s)}$ *) = G1.apply_powers h_poly ekey.si in
 
       (* $\alpha_v v_{mid}(s) = \Sigma_{k\in I_{mid}} c_k \cdot \alpha_v v_k(s)$ *)
-      let vavv (* $g_v^{\alpha v_{mid}(s)}$ *) = dot g1 ekey.vav c_mid in
+      let vavv (* $g_v^{\alpha v_{mid}(s)}$ *) = G1.dot ekey.vav c_mid in
 
       (* $\alpha_w w_{mid}(s) = \Sigma_{k\in I_{mid}} c_k \cdot \alpha_w w_k(s)$ *)
-      let waww (* $g_w^{\alpha_w w_{mid}(s)}$ *) = dot g2 ekey.waw c_mid in
+      let waww (* $g_w^{\alpha_w w_{mid}(s)}$ *) = G2.dot ekey.waw c_mid in
 
       (* $\alpha_y y_{mid}(s) = \Sigma_{k\in I_{mid}} c_k \cdot \alpha_y y_k(s)$ *)
-      let yayy (* $g_y^{\alpha_y y_{mid}(s)}$ *) = dot g1 ekey.yay c_mid in
+      let yayy (* $g_y^{\alpha_y y_{mid}(s)}$ *) = G1.dot ekey.yay c_mid in
 
       let bvwy (* $g_v^{\beta v_{mid}(s)} g_w^{\beta w_{mid}(s)} g_y^{\beta y_{mid}(s)}$ *) =
-        dot g1 ekey.bvwy c_mid
+        G1.dot ekey.bvwy c_mid
       in
 
       { vv;
@@ -398,7 +369,7 @@ module Make(C : Ecp.CURVE) = struct
         (* $g_v^{v_{io}(s)} = \Pi_{k\in [N]} (g_v^{v_k(s)})^{c_k} = \Pi_{k\in [N]} g_v^{v_k(s) \cdot c_k}$
            The paper uses prod for the operaiton of Gi.  Our code uses add instead *)
         assert (Var.Set.equal (Var.Map.domain c) (Var.Map.domain vkey.vv_io));
-        sum_map g1 c @@ fun k ck ->
+        G1.sum_map c @@ fun k ck ->
             let vks = vkey.vv_io #! k in
             G1.(vks * ck)
       in
@@ -406,7 +377,7 @@ module Make(C : Ecp.CURVE) = struct
       let wio (* $g_w^{w_{io}(s)}$ *) =
         (* $g_w^{w_{io}(s)} = \Pi_{k\in [N]} (g_w^{w_k(s)})^{c_k} = \Pi_{k\in [N]} g_w^{w_k(s) \cdot c_k}$ *)
         assert (Var.Set.equal (Var.Map.domain c) (Var.Map.domain vkey.ww_io));
-        sum_map g2 c @@ fun k ck ->
+        G2.sum_map c @@ fun k ck ->
             let wks = vkey.ww_io #! k in
             G2.(wks * ck)
       in
@@ -414,7 +385,7 @@ module Make(C : Ecp.CURVE) = struct
       let yio (* $g_y^{y_{io}(s)}$ *) =
         (* $g_y^{y_{io}(s)} = \Pi_{k\in [N]} (g_y^{y_k(s)})^{c_k} = \Pi_{k\in [N]} g_y^{y_k(s) \cdot c_k}$ *)
         assert (Var.Set.equal (Var.Map.domain c) (Var.Map.domain vkey.yy_io));
-        sum_map g1 c @@ fun k ck ->
+        G1.sum_map c @@ fun k ck ->
             let yks = vkey.yy_io #! k in
             G1.(yks * ck)
       in
@@ -457,26 +428,26 @@ module Make(C : Ecp.CURVE) = struct
       let dv (* $\delta_v$ *) = Fr.gen rng in
       let dw (* $\delta_w$ *) = Fr.gen rng in
       let dy (* $\delta_y$ *) = Fr.gen rng in
-      let t (* $g_1^{t(s)}$, not $g_y^{t(s)}$! *) = apply_powers g1 target ekey.si in
+      let t (* $g_1^{t(s)}$, not $g_y^{t(s)}$! *) = G1.apply_powers target ekey.si in
 
       let c = sol in
       let mid = Var.Map.domain ekey.vv in
       let c_mid = Var.Map.filter (fun v _ -> Var.Set.mem v mid) c in
 
       (* $v_{mid}(s) = \Sigma_{k\in I_{mid}} c_k \cdot v_k(s)$ *)
-      let vv (* $g_v^{v_{mid}(s)}$ *) = dot g1 ekey.vv c_mid in
+      let vv (* $g_v^{v_{mid}(s)}$ *) = G1.dot ekey.vv c_mid in
       let vv' (* $g_v^{v_{mid}(s) + \delta_v t(s)}$ *) = G1.(vv + ekey.vt * dv) in
 
       (* $w_{mid}(s) = \Sigma_{k\in I_{mid}} c_k \cdot w_k(s)$ *)
-      let ww (* $g_w^{w_{mid}(s)}$ *) = dot g2 ekey.ww c_mid in
+      let ww (* $g_w^{w_{mid}(s)}$ *) = G2.dot ekey.ww c_mid in
       let ww' (* $g_w^{w_{mid}(s) + \delta_w t(s)}$ *) = G2.(ww + ekey.wt * dw) in
 
       (* $y_{mid}(s) = \Sigma_{k\in I_{mid}} c_k \cdot y_k(s)$ *)
-      let yy (* $g_y^{y_{mid}(s)}$ *) = dot g1 ekey.yy c_mid in
+      let yy (* $g_y^{y_{mid}(s)}$ *) = G1.dot ekey.yy c_mid in
       let yy' (* $g_y^{y_{mid}(s) + \delta_y  t(s)}$ *) = G1.(yy + ekey.yt * dy) in
 
       (* $h(s) = h_0 + h_1  s + h_2  s^2 + .. + h_d  s^d$ *)
-      let h (* $g^{h(s)}$ *) = apply_powers g1 h_poly ekey.si in
+      let h (* $g^{h(s)}$ *) = G1.apply_powers h_poly ekey.si in
       (* $p'(x) := v'(x) \cdot w'(x) - y'(x)$
              $= (\Sigma c_k v_k(x) + \delta_v t(x))\cdot (\Sigma c_k w_k(x) + \delta_w t(x))
                      - (\Sigma c_k y_k(x) + \delta_y t(x))$
@@ -509,25 +480,25 @@ module Make(C : Ecp.CURVE) = struct
       *)
       let h' (* $h'(s) = h(s) + v(s) \cdot \delta_w + w(s) \cdot \delta_v + \delta_v \delta_w t(s) - \delta_y$ *) =
         let open G1 in
-        let v_all (* $g_1^{v(s)}$ Not $g_v^{v(s)}$!! *) = dot g1 ekey.v_all c in
-        let w_all (* $g_1^{w(s)}$ Not $g_w^{w(s)}$!! *) = dot g1 ekey.w_all c in
+        let v_all (* $g_1^{v(s)}$ Not $g_v^{v(s)}$!! *) = G1.dot ekey.v_all c in
+        let w_all (* $g_1^{w(s)}$ Not $g_w^{w(s)}$!! *) = G1.dot ekey.w_all c in
         h  +  v_all * dw  +  w_all * dv  +  t * dv * dw  -  one * dy
       in
 
       (* $\alpha_v v_{mid}(s) = \Sigma_{k\in I_{mid}} c_k \cdot \alpha_v v_k(s)$ *)
-      let vavv (* $g_v^{\alpha_v v_{mid}(s)}$ *) = dot g1 ekey.vav c_mid in
+      let vavv (* $g_v^{\alpha_v v_{mid}(s)}$ *) = G1.dot ekey.vav c_mid in
       let vavv' (* $g_v^{\alpha_v (v_{mid}(s) + \delta_v t(s))}$ *) = G1.(vavv + ekey.vavt * dv) in
 
       (* $\alpha_w w_{mid}(s) = \Sigma_{k\in I_{mid}} c_k \cdot \alpha_w w_k(s)$ *)
-      let waww (* $g_w^{\alpha_w w_{mid}(s)}$ *) = dot g2 ekey.waw c_mid in
+      let waww (* $g_w^{\alpha_w w_{mid}(s)}$ *) = G2.dot ekey.waw c_mid in
       let waww' (* $g_w^{\alpha_w (w_{mid}(s) + \delta_w t(s))}$ *) = G2.(waww + ekey.wawt * dw) in
 
       (* $\alpha_y y_{mid}(s) = \Sigma_{k\in I_{mid}} c_k \cdot \alpha_y y_k(s)$ *)
-      let yayy (* $g_y^{\alpha_y y_{mid}(s)}$ *) = dot g1 ekey.yay c_mid in
+      let yayy (* $g_y^{\alpha_y y_{mid}(s)}$ *) = G1.dot ekey.yay c_mid in
       let yayy' (* $g_y^{\alpha_y (y_{mid}(s) + \delta_y t(s))}$ *) = G1.(yayy + ekey.yayt * dy) in
 
       let bvwy (* $g_v^{\beta v_{mid}(s)} g_w^{\beta w_{mid}(s)} g_y^{\beta y_{mid}(s)}$ *) =
-        dot g1 ekey.bvwy c_mid
+        G1.dot ekey.bvwy c_mid
       in
       let bvwy' (* $g_v^{\beta (v_{mid}(s) + \delta_v t(s))} g_w^{\beta (w_{mid}(s) + \delta_w t(s))} g_y^{\beta (y_{mid}(s) + \delta_y t(s))}$ *) =
         G1.(bvwy + ekey.vbt * dv + ekey.wbt * dw + ekey.ybt * dy)

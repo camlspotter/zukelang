@@ -20,13 +20,13 @@ module Make(C : Ecp.CURVE) = struct
   type pkey =
     { a       : G1.t;               (* α *)
       d1      : G1.t;               (* δ *)
-      ti1     : (int * G1.t) list;  (* 1, τ, τ^2, τ^3, ..., τ^{n-1} *)
+      ti1     : G1.t list;          (* 1, τ, τ^2, τ^3, ..., τ^{n-1} *)
       ltd_mid : G1.t Var.Map.t;     (* {Li(τ)/δ} for i∈[l+1..m] *)
-      tiztd   : (int * G1.t) list;  (* Z(τ)/δ, τ*Z(τ)/δ, τ^2*Z(τ)/δ, ..., τ^(n-2)*Z(τ)/δ *)
+      tiztd   : G1.t list;          (* Z(τ)/δ, τ*Z(τ)/δ, τ^2*Z(τ)/δ, ..., τ^(n-2)*Z(τ)/δ *)
       b1      : G1.t;               (* β not documented but required to compute proof C *)
       b2      : G2.t;               (* β *)
       d2      : G2.t;               (* δ *)
-      ti2     : (int * G2.t) list   (* 1, τ, τ2, τ3, ..., τn-1 *)
+      ti2     : G2.t list           (* 1, τ, τ2, τ3, ..., τn-1 *)
     }
 
   type vkey =
@@ -37,20 +37,6 @@ module Make(C : Ecp.CURVE) = struct
       d        : G2.t;             (* δ *)
       ab       : GT.t              (* αβ *)
     }
-
-  (* $\{ g^s^i \}_{i\in[d]}$ *)
-  let powers (type t) (module G : G with type t = t) d s =
-    List.init (d+1) (fun i ->
-        let s'i = Fr.(s ** Z.of_int i) in
-        i, G.of_Fr s'i)
-
-    (* $\Sigma_i c_i x^i$ *)
-  let apply_powers (type t) (module G : G with type t = t) (cs : Poly.t) xis =
-    let open G in
-    sum @@
-    List.mapi (fun i c ->
-        let xi = List.assoc i xis in
-        xi * c) cs
 
   let setup rng v_io v_mid n (qap : QAP.t) =
     (* Coefficient variables
@@ -80,7 +66,7 @@ module Make(C : Ecp.CURVE) = struct
     let pkey =
       let a (* α *) = g1 a
       and d1 (* δ *) = g1 d
-      and ti1 (* {τ^i} *) = powers (module G1) (n+1) t
+      and ti1 (* {τ^i} *) = G1.powers (n+1) t
       and ltd_mid =
         (* Ll+1(τ)/δ, Ll+2(τ)/δ, ..., Lm(τ)/δ *)
         (* v_mid carries [l+1..m] vars *)
@@ -90,13 +76,11 @@ module Make(C : Ecp.CURVE) = struct
       and tiztd =
         (* {τ^i*Z(τ)/δ} i∈ [0,n-2] *)
         let ztd (* Z(τ)/δ *) = Fr.(Poly.apply z t / d) in
-        List.init (n-1) (fun i ->
-            i,
-            g1 Fr.((t ** Z.of_int i) * ztd))
+        List.init (n-1) (fun i -> g1 Fr.((t ** Z.of_int i) * ztd))
       and b1 (* β *) = g1 b
       and b2 (* β *) = g2 b
       and d2 (* δ *) = g2 d
-      and ti2 (* {τ^i} *) = powers (module G2) (n+1) t
+      and ti2 (* {τ^i} *) = G2.powers (n+1) t
       in
       { a; d1; ti1; ltd_mid; tiztd; b1; b2; d2; ti2 }
     in
@@ -129,7 +113,7 @@ module Make(C : Ecp.CURVE) = struct
     Var.Map.fold (fun k wk acc ->
         let open G in
         let p = ps #! k in
-        apply_powers (module G) p ti * wk
+        G.apply_powers p ti * wk
         + acc) w G.zero
 
   let prove rng (pkey : pkey) (qap : QAP.t) w (* solution with 1 *) h =
@@ -160,13 +144,10 @@ module Make(C : Ecp.CURVE) = struct
         + sum_apply_powers (module G1) pkey.ti1 pB w
         + pkey.d1 * s
       in
-      let htztd (* H(τ)*Z(τ)/δ *) = apply_powers (module G1) h pkey.tiztd in
+      let htztd (* H(τ)*Z(τ)/δ *) = G1.apply_powers h pkey.tiztd in
 
       (* Σ wk*(Lk(τ)/δ), k∈[l+1..m] *)
-      Var.Map.fold (fun k lktd (* Lk(τ)/δ *) acc ->
-          let open G1 in
-          let wk = w #! k in
-          lktd * wk + acc) pkey.ltd_mid G1.zero
+      G1.dot pkey.ltd_mid (Var.Map.(restrict (domain pkey.ltd_mid) w))
 
       + htztd
       + a * s
@@ -184,9 +165,7 @@ module Make(C : Ecp.CURVE) = struct
     let open GT in
     e proof.a proof.b
     = vkey.ab
-      + e G1.(Var.Map.fold (fun k ltgm_k acc ->
-          let wk = w_io #! k in
-          ltgm_k * wk + acc) vkey.ltgm_io zero) vkey.gm
+      + e (G1.dot vkey.ltgm_io w_io) vkey.gm
       + e proof.c vkey.d
 
   (* Why the equation holds?
