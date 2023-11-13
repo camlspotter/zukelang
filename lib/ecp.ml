@@ -2,6 +2,22 @@
 
 open Misc
 
+(*
+  (* $\{ g^s^i \}_{i\in[d]}$ *)
+  let powers (type t) (module G : G with type t = t) d s =
+    List.init (d+1) (fun i ->
+        let s'i = Fr.(s ** Z.of_int i) in
+        i, G.of_Fr s'i)
+
+  (* $\Sigma_i c_i x^i$ *)
+  let apply_powers (type t) (module G : G with type t = t) (cs : Poly.t) xis =
+    let open G in
+    sum @@
+    List.mapi (fun i c ->
+        let xi = List.assoc i xis in
+        xi * c) cs
+*)
+
 module type G = sig
   type t
   type fr
@@ -16,6 +32,18 @@ module type G = sig
   val of_Fr : fr -> t
   val of_q : Q.t -> t
   val pp : t printer
+
+  val sum_map : 'a Var.Map.t -> (Var.t -> 'a -> t) -> t
+  (** $\Sigma_{k\in Dom(m)} f k mk$ *)
+
+  val dot : t Var.Map.t -> fr Var.Map.t -> t
+  (** $\Sigma_{k\in Dom(m)} mk \cdot ck$ *)
+
+  val powers : int -> fr -> t list
+  (** $\{ g^s^i \}_{i\in[d]}$ *)
+
+  val apply_powers : fr Polynomial.t -> t list -> t
+  (** $\Sigma_i c_i x^i$ *)
 end
 
 module type CURVE = sig
@@ -39,6 +67,48 @@ module Bls12_381 = struct
   (* extend Bls12_381 with some printers *)
   include Bls12_381
 
+  module ExtendMap(G : sig
+      type t
+      type fr
+      val (+) : t -> t -> t
+      val ( * ) : t -> fr -> t
+      val zero : t
+      val of_Fr : fr -> t
+      val fr_power : fr -> Z.t -> fr
+    end ) = struct
+    open G
+
+    (* $\Sigma_{k\in Dom(m)} f k mk$ *)
+    let sum_map m f = Var.Map.fold (fun k v acc -> f k v + acc) m zero
+
+    (* $\Sigma_{k\in Dom(m)} mk \cdot ck$ *)
+    let dot m c =
+      let open Var.Infix in
+      if not (Var.Set.equal (Var.Map.domain m) (Var.Map.domain c)) then begin
+        prerr_endline "Domain mismatch";
+        Format.(ef "m : %a@.c : %a@." Var.Set.pp (Var.Map.domain m) Var.Set.pp (Var.Map.domain c));
+        assert false
+      end;
+      sum_map m (fun k mk ->
+          let ck = c #! k in
+          mk * ck)
+
+    (* $\{ g^s^i \}_{i\in[d]}$ *)
+    let powers d s =
+      List.init Stdlib.(d+1) (fun i ->
+          let s'i = fr_power s (Z.of_int i) in
+          of_Fr s'i)
+
+    (* $\Sigma_i c_i x^i$ *)
+    let apply_powers (cs : fr Polynomial.t) xis =
+      let rec loop acc = function
+        | c::cs, x::xis -> loop (x * c + acc) (cs, xis)
+        | [], _ -> acc
+        | _, [] -> invalid_arg "apply_powers"
+      in
+      loop zero (cs, xis)
+  end
+
   module Fr = struct
     module Fr = struct
       include Fr
@@ -56,6 +126,12 @@ module Bls12_381 = struct
       include Polynomial.Make(Fr)
       let of_q : Polynomial.Make(Q).t -> t = List.map Fr.of_q
     end
+
+    include ExtendMap(struct
+        include Fr
+        type fr = Fr.t
+        let fr_power = ( ** )
+      end)
   end
 
   module type G = G with type fr = Fr.t
@@ -80,6 +156,15 @@ module Bls12_381 = struct
     let sum = List.fold_left (+) zero
     let of_Fr = ( * ) one
     let of_q q = of_Fr Fr.(of_z q.Q.num / of_z q.Q.den)
+
+    include ExtendMap(struct
+        include G
+        type fr = Fr.t
+        let ( + ) = add
+        let ( * ) = mul
+        let of_Fr = of_Fr
+        let fr_power = Fr.( ** )
+      end)
   end
 
   module G1 = struct
