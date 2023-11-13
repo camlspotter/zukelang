@@ -7,7 +7,6 @@ module Var = Var
 module Lang = Lang
 module Circuit = Circuit
 module QAP = QAP
-module Dft = Dft
+module FFT = FFT
 
-let () = Dft.C.test ()
-let () = Dft.test ()
+let () = FFT.test ()
