@@ -45,6 +45,8 @@ module type S = sig
 
   val is_zero : t -> bool
 
+  val equal : t -> t -> bool
+
   module Infix : sig
     val ( + ) : t -> t -> t
     val ( - ) : t -> t -> t
@@ -252,6 +254,18 @@ module Make (A : Field.S) : S with type f = A.t = struct
     if len = 0 then 0 else len - 1
 
   let is_zero t = normalize t = zero
+
+  let equal t1 t2 =
+    let rec loop t1 t2 =
+      match t1, t2 with
+      | [], [] -> true
+      | c1::t1, c2::t2 when A.(c1 = c2) -> loop t1 t2
+      (* covers the non normalized cases *)
+      | c1::t1, [] when A.(c1 = zero) -> loop t1 []
+      | [], c2::t2 when A.(c2 = zero) -> loop t2 []
+      | _ -> false
+    in
+    loop t1 t2
 
   module Infix = struct
     let (+) = add

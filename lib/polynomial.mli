@@ -65,6 +65,8 @@ module type S = sig
 
   val is_zero : t -> bool
 
+  val equal : t -> t -> bool
+
   module Infix : sig
     val ( + ) : t -> t -> t
     val ( - ) : t -> t -> t
