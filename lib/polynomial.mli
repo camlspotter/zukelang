@@ -17,7 +17,7 @@ module type S = sig
 
   val one : t
 
-  val gen : t Gen.t
+  val gen : int Gen.t -> t Gen.t
 
   val apply : t -> f -> f
   (** [apply f x] computes $f(x)$ *)
@@ -75,6 +75,8 @@ module type S = sig
     val ( /% ) : t -> t -> t * t
     val ( ~- ) : t -> t
   end
+
+  val test : unit -> unit
 end
 
 module Make (F : Field.S) : S with type f = F.t

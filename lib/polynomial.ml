@@ -17,7 +17,7 @@ module type S = sig
 
   val one : t
 
-  val gen : t Gen.t
+  val gen : int Gen.t -> t Gen.t
 
   val apply : t -> f -> f
 
@@ -55,6 +55,8 @@ module type S = sig
     val ( /% ) : t -> t -> t * t
     val ( ~- ) : t -> t
   end
+
+  val test : unit -> unit
 end
 
 module Make (A : Field.S) : S with type f = A.t = struct
@@ -166,9 +168,9 @@ module Make (A : Field.S) : S with type f = A.t = struct
     let ds, rem = loop rp1 in
     (List.rev ds, normalize @@ List.rev rem)
 
-  let gen rng =
+  let gen sz rng =
     let open Random.State in
-    let l = int rng 20 in
+    let l = sz rng in
     normalize
     @@ List.init l (fun _ ->
            let x = int rng 201 - 100 in
@@ -188,8 +190,8 @@ module Make (A : Field.S) : S with type f = A.t = struct
     ef "div %a@." pp d ;
     ef "rem %a@." pp r ;
     let test rng =
-      let a = gen rng in
-      let b = gen rng in
+      let a = gen (Gen.int 20) rng in
+      let b = gen (Gen.int 20) rng in
       if b <> zero then (
         let d, r = div_rem a b in
         assert (List.length r < List.length b) ;
@@ -276,7 +278,7 @@ module Make (A : Field.S) : S with type f = A.t = struct
     let (/%) = div_rem
   end
 
-  let () =
+  let test () =
     test_apply () ;
     test_mul () ;
     test_interpolate () ;
@@ -285,3 +287,7 @@ module Make (A : Field.S) : S with type f = A.t = struct
 end
 
 let conv f = List.map f
+
+let () =
+  let module PQ = Make(Q) in
+  PQ.test ()
