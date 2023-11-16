@@ -1,198 +1,137 @@
 open Misc
 
-let log2 =
-  let l2 = log 2.0 in
-  fun f -> log f /. l2
+(* $\zeta_N^k = -\zeta_N^{k - N/2}$
 
-module PQ = Polynomial.Make(Q)
+   $\hat{f}(\zeta_N^{-k}) = \Sigma_{j=0}^{N-1}c_j \Sigma_{i=0}^{N-1}(\zeta_N^j \zeta_N^{-k})^i$
+           $= \Sigma_{j=0}^{N-1} c_j \Sigma_{i=0}^{N-1}(\zeta_N^{i(j-k)})$
+           $= \Sigma_{j=0}^{N-1} c_j \mathrm{~if~} j=k \mathrm{~then~} N \mathrm{~else~} 0$ since the orthogonality of $\zeta_N$
+           $= N c_k$
+*)
 
-(* $m = \Sigma_k c_k \zeta_N^k$ *)
-module ZetaMap(N : sig val n : int end) = struct
-  include Map.Make(Int)
+module Make(F : sig
+    include Field.S
 
-  let () = assert (N.n = 1 || N.n mod 2 = 0)
+    val zeta : int -> int -> t
+    (* [zeta n i] = $\zeta_{N}^i$ where
 
-  let n2 (* n / 2 *) = N.n / 2
+       $\zeta_N^i =  \zeta_N^j$ when $i = j \mathrm{~mod~} N$
 
-  (* $m + c_k \zeta_N^k$ *)
-  let add k ck map =
-    if Q.(ck = zero) then map
-    else
-      let k = k mod N.n in
-      let k = if k < 0 then k + N.n else k in
-      (* $\zeta_N^k = -\zeta_N^{k - N/2}$ *)
-      let k, ck = if N.n > 1 && k >= n2 then k - n2, Q.(~- ck) else k, ck in
-      update k (fun co ->
-          match co with
-          | None -> Some ck
-          | Some c ->
-              let c = Q.(c + ck) in
-              if Q.(c = zero) then None else Some c) map
+       $\Sigma_{i=0}^{N-1} \zeta_N^{ij} = N$ when $j = 0$
+       $\Sigma_{i=0}^{N-1} \zeta_N^{ij} = 0$ when $j \neq 0$
+    *)
 
-  (* $m_1 + m_2$ *)
-  let _union map1 map2 =
-    union (fun _k c1 c2 ->
-        let c = Q.(c1 + c2) in
-        if Q.(c = zero) then None
-        else Some c) map1 map2
+    val polynomial_equal : t Polynomial.t -> t Polynomial.t -> bool
+  end) = struct
 
-  let _pp ppf map =
-    Format.(seq ",@ " (fun ppf (k, ck) -> f ppf "%d:%a" k Q.pp ck))
-      ppf
-      @@ to_seq map
-
-end
-
-let dft fzNs (* $f(\zeta_N^k)$ where $f(x) = \Sigma_{j=0}^{N-1} c_j x^j$ *) =
-  let n = Array.length fzNs in
-  let module ZetaMap = ZetaMap(struct let n = n end) in
-  (* $\hat{f}(t) = \Sigma_{i=0}^{N-1} f(\zeta^i_N)t^i$
-          $= \Sigma_{i=0}^{N-1} \Sigma_{j=0}^{N-1} c_j (\zeta^i_N)^j t^i$
-          $= \Sigma_{j=0}^{N-1} c_j \Sigma_{i=0}^{N-1} (\zeta^j_N t)^i$
-
-     $\hat{f}(\zeta_N^{-k}) = \Sigma_{j=0}^{N-1}c_j \Sigma_{i=0}^{N-1}(\zeta_N^j \zeta_N^{-k})^i$
-             $= \Sigma_{j=0}^{N-1} c_j \Sigma_{i=0}^{N-1}(\zeta_N^{i(j-k)})$
-             $= \Sigma_{j=0}^{N-1} c_j \mathrm{~if~} j=k \mathrm{~then~} N \mathrm{~else~} 0$ since the orthogonality of $\zeta_N$
-             $= N c_k$
-  *)
-  let f'zN k (* $\hat{f}(\zeta_N^k) = \Sigma_{i=0}^{N-1} f(\zeta^i_N)\zeta_N^{ik}$ *) =
-    let g i (* $f(\zeta^i_N)\zeta_N^{ik}$ *) =
-      let fzNi (* $f(\zeta_N^i)$ *) = Array.unsafe_get fzNs i in
-      ZetaMap.fold (fun l cl  (* $c_l\zeta_N^l$ *) acc ->
-          (* $c_l\zeta_N^l \cdot \zeta_N^{ik}  = c_i \zeta_N^{l+ik}$ *)
-          let lik = l + i * k in
-          (* The sums of $\zeta_N^j$ where $j \not \in \{0, N/2\}$ must be 0
-             therefore we can skip their additions *)
-          match lik mod n with
-          | 0 -> Q.(acc + cl)
-          | x when x * 2 = n -> Q.(acc - cl)
-          | _ -> acc)
-        fzNi Q.zero
-    in
-    List.fold_left Q.(+) Q.zero (List.init n g)
-  in
-  List.init n (fun k -> Q.(f'zN Stdlib.(n-k) / of_int n))
-
-let test_dft (f : PQ.t) =
-  let d = PQ.degree f in
-  let n (* $N$ *) = 1 lsl (int_of_float @@ ceil @@ log2 (float (d + 1))) in
-  let module ZetaMap = ZetaMap(struct let n = n end) in
-  let fzN k (* $f(\zeta_N^k)$ where $f(x) = \Sigma_{j=0}^{N-1} c_j x^j$ *) =
-    (* $f(\zeta_N^k) = \Sigma_{j=0}^{N-1} c_j (\zeta_N^k)^j = \Sigma_{j=0}^{N-1} c_j \zeta_N^{jk}$ *)
-    Seq.fold_left (fun map (j, cj) -> ZetaMap.add (j * k) cj map)
-      ZetaMap.empty @@ Seq.mapi (fun j cj -> (j, cj)) @@ List.to_seq f
-  in
-  let fzNs = Array.init n fzN in
-  let f2 = dft fzNs in
-  if not (PQ.equal f f2) then Format.ef "??? %a@." PQ.pp f2;
-  assert (PQ.equal f f2)
-
-module Make( F : Field.S ) = struct
   module Polynomial = Polynomial.Make(F)
-
-  module W(N : sig val n : int end) = struct
-    open N
-    include Map.Make(Int)
-    let scale s m =
-      if F.(s = zero) then empty
-      else map (fun ck -> F.(ck * s)) m
-    let add m1 m2 =
-      union (fun _k ck1 ck2 ->
-          let ck = F.(ck1 + ck2) in
-          if F.(ck = zero) then None else Some ck) m1 m2
-    let rot k m (* $\zeta_N^k * m$ *) =
-      fold (fun i ck acc ->
-          if F.(ck = zero) then acc
-          else
-            let k = (k + i) mod n in
-            let k = if k < 0 then k + n else k in
-            let k, ck =
-              if n > 1 && k >= n / 2 then k - n / 2, F.(~-) ck
-              else k, ck
-            in
-            update k (function
-                | None -> Some ck
-                | Some c ->
-                    let c = F.(c + ck) in
-                    if F.(c = zero) then None else Some c) acc)
-        m empty
-
-    let _pp ppf m =
-      Format.(seq ",@ " (fun ppf (k, ck) -> f ppf "%d:%a" k F.pp ck)) ppf
-      @@ to_seq m
-  end
 
   (* https://faculty.sites.iastate.edu/jia/files/inline-files/polymultiply.pdf *)
   let gen_fft ~inv a (* length must be $n = 2^m$ *) =
+    let (#!) = Array.get in
     let n = Array.length a in
-    let module W = W(struct let n = n end) in
-    let n0 = n in
-    let n02 = n0 / 2 in
-    let rec loop a =
-      let n = Array.length a in
-      if n <= 1 then a
+    let zeta_n = F.zeta n in
+    let zeta_n =
+      (* memoized zeta_n *)
+      let memo = Hashtbl.create 101 in
+      fun i ->
+        match Hashtbl.find memo i with
+        | zni -> zni
+        | exception Not_found ->
+            let zni = zeta_n i in
+            Hashtbl.add memo i zni;
+            zni
+    in
+    let rec loop m a =
+      (* m * Array.length a = n *)
+      let n' = Array.length a in
+      if n' <= 1 then a
       else
-        let (#!) = Array.unsafe_get in
-        let a0 = Array.init (n/2) (fun i -> a #! (i*2)) in
-        let a1 = Array.init (n/2) (fun i -> a #! (i*2+1)) in
-        let a'0 = loop a0 in
-        let a'1 = loop a1 in
-        let n2 = n / 2 in
-        Array.init n (fun k ->
-            if k < n2 then
+        let zeta_n' i = zeta_n (i * m) in
+        let n'2 = n' / 2 in
+        let a0 = Array.init n'2 (fun i -> a #! (i*2)) in
+        let a1 = Array.init n'2 (fun i -> a #! (i*2+1)) in
+        let a'0 = loop (m * 2) a0 in
+        let a'1 = loop (m * 2) a1 in
+        Array.init n' (fun k ->
+            if k < n'2 then
               let k' = if inv then -k else k in
-              W.add (a'0 #! k) (W.rot (k' * n0 / n) (a'1 #! k))
+              F.(a'0#!k + zeta_n' k' * a'1#!k)
             else
-              let k = k - n2 in
+              let k = k - n'2 in
               let k' = if inv then -k else k in
-              W.add (a'0 #! k) (W.rot (k' * n0 / n + n02) (a'1 #! k)))
+              F.(a'0#!k + zeta_n' Stdlib.(k' + n'2) * a'1#!k))
     in
     if inv then
-      Array.map (W.scale F.(one / of_int n)) @@ loop a
-    else loop a
+      (* TODO: we may use mutation *)
+      Array.map (fun x -> F.(x / of_int n))  @@ loop 1 a
+    else loop 1 a
 
-  let fft f =
+  let fft ?degree f =
     let d = Polynomial.degree f in
-    let n (* $N$ *) = 1 lsl (int_of_float @@ ceil @@ log2 (float (d + 1))) in
-    let module W = W(struct let n = n end) in
-    let a = Array.(append (of_list f) (init (n - d - 1) (fun _ -> F.zero))) in
-    let a = Array.map (fun c -> W.singleton 0 c) a in
+    let n (* $N$ *) =
+      let d =
+        match degree, d with
+        | None, d -> d
+        | Some d', d -> max d' d
+      in
+      1 lsl (int_of_float @@ ceil @@ log2 (float (d + 1)))
+    in
+    let f = Array.of_list f in
+    let a = Array.(append f (init (n - Array.length f) (fun _ -> F.zero))) in
     gen_fft ~inv:false a
 
   let ifft vs =
-    let module W = W(struct let n = Array.length vs end) in
     let a_ = gen_fft ~inv:true vs in
-    let f =
-      Array.to_list @@ Array.map (fun m ->
-          (* W.iter (fun k _ -> if k <> 0 then assert false) m; *)
-          Option.value ~default:F.zero @@ W.find_opt 0 m) a_
-    in
+    let f = Array.to_list a_ in
     Polynomial.normalize f
 
   let test_fft f =
     let a' = fft f in
     let f' = ifft a' in
-    assert (Polynomial.equal f f')
+    if not (F.polynomial_equal f f') then begin
+      Format.ef "test_fft failed:@.";
+      Format.ef "  %a@." Polynomial.pp f;
+      Format.ef "  %a@." Polynomial.pp f';
+      assert false
+    end
+
+  let polynomial_mul p1 p2 =
+    let d1 = Polynomial.degree p1 in
+    let d2 = Polynomial.degree p2 in
+    let degree = d1 + d2 in
+    let a1 = fft ~degree p1 in
+    let a2 = fft ~degree p2 in
+    let a = Array.map2 F.( * ) a1 a2 in
+    ifft a
+
+  let test_polynomial_mul p1 p2 =
+    assert (F.polynomial_equal (polynomial_mul p1 p2) (Polynomial.mul p1 p2))
 end
 
-let test () =
-  let (!) n = Q.of_int n in
-  test_dft [];
-  test_dft [!1];
-  test_dft [!9];
-  test_dft [!2];
-  test_dft [!1; !1];
-  test_dft [!9; !4];
-  test_dft [!9; !8; !7; !6; !5; !4; !3];
-  test_dft [!1; !2; !3];
-  let rng = Random.State.make_self_init () in
-  for _ = 0 to 1000 do
-    let p = PQ.gen rng in
-    test_dft p
-  done;
-  prerr_endline "FFT";
-  let module FFT = Make(Q) in
-  let open FFT in
+module FFT_C = Make(struct
+    include C
+
+    let equal (r1,i1) (r2,i2) =
+      Float.abs (r1 -. r2) <= 0.0001
+      && Float.abs (i1 -. i2) <= 0.0001
+
+    let polynomial_equal f f' =
+      let rec loop t1 t2 =
+        match t1, t2 with
+        | [], [] -> true
+        | c1::t1, c2::t2 when equal c1 c2 -> loop t1 t2
+        (* covers the non normalized cases *)
+        | c1::t1, [] when equal c1 C.zero -> loop t1 []
+        | [], c2::t2 when equal c2 C.zero -> loop t2 []
+        | _ -> false
+      in
+      loop f f'
+  end)
+
+let test_c () =
+  prerr_endline "FFT_C";
+  let open FFT_C in
+  let (!) = C.of_int in
   test_fft [];
   test_fft [!3];
   test_fft [!3; !2];
@@ -201,6 +140,147 @@ let test () =
   test_fft [!9; !8; !7; !6; !5; !4; !3];
   let rng = Random.State.make_self_init () in
   for _ = 0 to 1000 do
-    let p = Polynomial.gen rng in
+    let p = Polynomial.gen (Gen.int 20) rng in
     test_fft p
   done;
+  test_polynomial_mul [!1; !2] [!3; !4];
+  test_polynomial_mul [] [!3; !4];
+  for _ = 0 to 10000 do
+    let p1 = Polynomial.gen (Gen.int 20) rng in
+    let p2 = Polynomial.gen (Gen.int 20) rng in
+    test_polynomial_mul p1 p2
+  done;
+  let benchmark n =
+    let samples =
+      List.init 10 (fun _ ->
+          let p1 = Polynomial.gen (Gen.return n) rng in
+          let p2 = Polynomial.gen (Gen.return n) rng in
+          p1, p2)
+    in
+    let (), t_fft =
+      with_time (fun () ->
+          List.iter (fun (p1,p2) -> ignore @@ polynomial_mul p1 p2) samples)
+    in
+    let (), t_naive =
+      with_time (fun () ->
+          List.iter (fun (p1,p2) -> ignore @@ Polynomial.mul p1 p2) samples)
+    in
+    Format.ef "n: %d FFT: %f  Naive: %f  ratio: %f@." n t_fft t_naive (t_fft /. t_naive)
+  in
+  benchmark 10;
+  benchmark 20;
+  benchmark 30;
+  benchmark 40;
+  benchmark 50; (* x0.8 FFT is faster than the naive algorithm from here. *)
+  benchmark 100; (* x0.3 *)
+  benchmark 1000; (* x0.03 *)
+  prerr_endline "FFT_C end"
+
+module Bls12_381_zeta = struct
+  (* #Fr = 2^32 * a + 1 for some odd number a
+
+     From Fermat's little theorem,
+
+       g^(#Fr-1) = 1  (mod #Fr)  for   g \in Fr
+
+       g^(2^32 * a) = 1
+
+       (g^a)^(2^32) = 1
+  *)
+  open Ecp.Bls12_381
+
+  let m, a =
+    let module Fr = Ecp.Bls12_381.Fr in
+    let order = Fr.order in
+    let rec f acc i =
+      match Z.(div_rem i (of_int 2)) with
+      | d, r when Z.(r = zero) -> f (acc + 1) d
+      | _ -> acc, i
+    in
+    let m, a = f 0 Z.(order - one) in
+    Format.ef "#Fr = 2^%d * %a + 1@." m Z.pp a;
+    m, a
+
+  let () = assert (Fr.order = Z.((one lsl m) * a + one))
+
+  (* pick $g \in Fr$ s.t. $(g^a)^{2^m} \equiv 1$ but $(g^a)^{2^{m-1}} \not \equiv 1$ *)
+
+  let g = 5
+
+  let test g =
+    let m_1 = m - 1 in
+    let w = Fr.(of_int g ** a) in
+    Fr.(w ** Z.(of_int 2 ** m_1) <> one)
+    && Fr.(w ** Z.(of_int 2 ** m) = one)
+
+  let () = assert (test g)
+
+  (* a 2^32th primitive root of unity *)
+  let w (* $\omega$, $\omega^{2^{32}} \equiv 1$ and $\omega^{2^{31}} \not \equiv 1$ *) = Fr.(of_int g ** a)
+end
+
+module FFT_Fr = Make(struct
+    include Ecp.Bls12_381.Fr
+
+    let polynomial_equal = Poly.equal
+
+    let max_n = 1 lsl 32
+
+    let zeta n =
+      if n > max_n then invalid_arg "Fr.zeta";
+      if max_n mod n <> 0 then invalid_arg "Fr.zeta";
+      fun i -> Bls12_381_zeta.w ** (Z.of_int Stdlib.( max_n / n * i ))
+  end)
+
+let test_fr () =
+  prerr_endline "FFT_Fr";
+  let open FFT_Fr in
+  let (!) = Bls12_381.Fr.of_int in
+  test_fft [];
+  test_fft [!3];
+  test_fft [!3; !2];
+  test_fft [!1; !9];
+  test_fft [!3; !2; !4];
+  test_fft [!9; !8; !7; !6; !5; !4; !3];
+  let rng = Random.State.make_self_init () in
+  for _ = 0 to 1000 do
+    let p = Polynomial.gen (Gen.int 20) rng in
+    test_fft p
+  done;
+  test_polynomial_mul [!1; !2] [!3; !4];
+  test_polynomial_mul [] [!3; !4];
+  for _ = 0 to 10000 do
+    let p1 = Polynomial.gen (Gen.int 20) rng in
+    let p2 = Polynomial.gen (Gen.int 20) rng in
+    test_polynomial_mul p1 p2
+  done;
+  let benchmark n =
+    let samples =
+      List.init 100 (fun _ ->
+          let p1 = Polynomial.gen (Gen.return n) rng in
+          let p2 = Polynomial.gen (Gen.return n) rng in
+          p1, p2)
+    in
+    let (), t_fft =
+      with_time (fun () ->
+          List.iter (fun (p1,p2) -> ignore @@ polynomial_mul p1 p2) samples)
+    in
+    let (), t_naive =
+      with_time (fun () ->
+          List.iter (fun (p1,p2) -> ignore @@ Polynomial.mul p1 p2) samples)
+    in
+    Format.ef "n: %d FFT: %f  Naive: %f  ratio: %f@." n t_fft t_naive (t_fft /. t_naive)
+  in
+  benchmark 10;
+  benchmark 20;
+  benchmark 30;
+  benchmark 40;
+  benchmark 50;
+  benchmark 100; (* x1.9 *)
+  benchmark 200; (* x0.95 *)
+  benchmark 1000; (* x0.14 *)
+  prerr_endline "FFT_Fr end"
+
+let test () =
+  test_c ();
+  test_fr ()

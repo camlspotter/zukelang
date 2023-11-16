@@ -1,8 +1,8 @@
-module Make(F : Field.S) : sig
+module FFT_C : sig
 
-  val fft : Polynomial.Make(F).t -> F.t Map.Make(Int).t array
+  val fft : ?degree:int -> Polynomial.Make(C).t -> C.t array
 
-  val ifft : F.t Map.Make(Int).t array -> Polynomial.Make(F).t
+  val ifft : C.t array -> Polynomial.Make(C).t
 
 end
 
