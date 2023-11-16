@@ -9,6 +9,8 @@ module type S = sig
   (** 0 *)
   val zero : t
 
+  val is_zero : t -> bool
+
   (** 1 *)
   val one : t
 
