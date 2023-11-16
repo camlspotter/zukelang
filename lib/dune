@@ -1,5 +1,5 @@
 (library
   (name utils)
-  (libraries zarith bls12-381)
+  (libraries zarith bls12-381 unix)
   (flags :standard -warn-error -9-32-34-37)
   )

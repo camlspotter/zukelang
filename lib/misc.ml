@@ -75,10 +75,16 @@ module Q = struct
   include Q
 
   let pp = pp_print
+
+  let is_zero x = Q.(x = zero)
 end
 
 module Gen = struct
   type 'a t = Random.State.t -> 'a
+
+  let int sz rng = Random.State.int rng sz
+
+  let return a _rng = a
 end
 
 module Seq = struct
@@ -95,4 +101,19 @@ module Seq = struct
             Cons (x, t)
     in
     aux 0 t
+end
+
+let with_time f =
+  let t1 = Unix.gettimeofday () in
+  let res = f () in
+  let t2 = Unix.gettimeofday () in
+  res, t2 -. t1
+
+let log2 =
+  let l2 = log 2.0 in
+  fun f -> log f /. l2
+
+module Z = struct
+  include Z
+  let pp = pp_print
 end
