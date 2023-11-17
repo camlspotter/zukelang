@@ -27,6 +27,8 @@ module Make(F : Field.S) = struct
 
     let var s = Term (Term.Var (Var.of_string s))
 
+    let var' v = Term (Term.Var v)
+
     let num n = Term (Term.Num n)
 
     let int n = Term (Term.Num (F.of_int n))
@@ -39,7 +41,7 @@ module Make(F : Field.S) = struct
       let (+) = add
       let ( * ) = mul
       let (!!) = num
-      let (!!!) = int
+      let (!) = int
       let (??) = var
     end
 

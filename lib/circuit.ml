@@ -220,7 +220,7 @@ module Make(F : Field.S) = struct
     let x = Expr.var "x" in
     let e =
       let open Expr.Infix in
-      x * x * x + x + !!! 3
+      x * x * x + x + !3
     in
     let open Format in
     ef "----------------@.";

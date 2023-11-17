@@ -16,7 +16,7 @@ let test () =
     let open Lang in
     let open Expr.Infix in
     let x = Expr.Term (Var x) in
-    x * x * x + x * !!!2 + !!!3
+    x * x * x + x * !2 + !3
   in
 
   (* VC *)

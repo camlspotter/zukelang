@@ -25,6 +25,8 @@ module Make(F : Field.S) : sig
 
     val var : string -> t
 
+    val var' : Var.t -> t
+
     val num : F.t -> t
 
     val int : int -> t
@@ -37,7 +39,7 @@ module Make(F : Field.S) : sig
       val ( + ) : t -> t -> t
       val ( * ) : t -> t -> t
       val ( !! ) : F.t -> t
-      val ( !!! ) : int -> t
+      val ( ! ) : int -> t
       val ( ?? ) : string -> t
     end
 

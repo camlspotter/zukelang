@@ -142,7 +142,7 @@ module Make(F : Field.S) = struct
       let open Lang in
       let open Expr.Infix in
       let x = Expr.Term (Var x) in
-      x * x + x * !!!2 + !!!3
+      x * x + x * !2 + !3
     in
     let open Format in
     ef "----------------@.";
