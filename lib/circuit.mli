@@ -23,8 +23,10 @@ module Make(F : Field.S) : sig
     val pp : t printer
   end
 
+  type gates = Gate.t Var.Map.t
+
   type circuit =
-    { gates : Gate.t Var.Map.t; (** Gates with the output variables *)
+    { gates : gates; (** Gates with the output variables *)
       input : Var.Set.t;
       output : Var.Set.t;
       mids : Var.Set.t; (** Intermediate variables *)
