@@ -6,8 +6,7 @@ let one = Var.of_string "~one"
 
 let out = Var.of_string "~out"
 
-module Make(F : Field.S) = struct
-
+module Make(F : Field.COMPARABLE) = struct
   let one = one
   let out = out
 
@@ -15,45 +14,52 @@ module Make(F : Field.S) = struct
   open Lang
 
   module Gate = struct
-    (* (2y + 3one) * (3z + 4w + 6one) *)
-    type gate = F.t Var.Map.t * F.t Var.Map.t
+    type affine = F.t Var.Map.t
+
+    let pp_affine ppf m =
+      let open Format in
+      Format.seq " + "
+        (fun ppf (v, n) ->
+           if v = one then
+             F.pp ppf n
+           else
+             f ppf "%a%a" F.pp n Var.pp v)
+        ppf
+      @@ Var.Map.to_seq m
+
+    let compare_affine = Var.Map.compare F.compare
+
+    (* z + 3 = (2y + 3one) * (3z + 4w + 6one) *)
+    type gate = { lhs : affine; l : affine; r : affine }
 
     type t = gate
 
-    let pp ppf (l, r : gate) =
-      let open Format in
-      let f = fprintf in
-      let pp_arg ppf xs =
-        Format.seq " + "
-          (fun ppf (v, n) ->
-             if v = one then
-               F.pp ppf n
-             else
-               f ppf "%a%a" F.pp n Var.pp v)
-          ppf
-          @@ Var.Map.to_seq xs
-      in
-      f ppf "(%a) * (%a)"
-        pp_arg l
-        pp_arg r
+    let pp ppf { lhs; l; r } =
+      Format.f ppf "%a = @[(@[%a@]) * (@[%a@])@]"
+        pp_affine lhs
+        pp_affine l
+        pp_affine r
+
+    let compare a b =
+      match compare_affine a.lhs b.lhs with
+      | 0 ->
+          (match compare_affine a.l b.l with
+           | 0 -> compare_affine a.r b.r
+           | n -> n)
+      | n -> n
+
+    module Set = struct
+      include Set.Make(struct
+          type t = gate
+          let compare = compare
+        end)
+
+      let pp ppf s = Format.(seq ",@ " pp ppf @@ to_seq s)
+    end
   end
 
-  type gates = Gate.t Var.Map.t
-
-  let equal_gates gs1 gs2 =
-    Var.Map.equal (fun (l1, r1) (l2, r2) ->
-        Var.Map.equal F.(=) l1 l2
-        && Var.Map.equal F.(=) r1 r2) gs1 gs2
-
-  let pp_gates ppf (gates : gates) =
-    let open Format in
-    list ",@ "
-      (fun ppf (v,g) ->
-         f ppf "%a = %a" Var.pp v Gate.pp g) ppf
-    @@ Var.Map.bindings gates
-
   type circuit =
-    { gates : Gate.t Var.Map.t;
+    { gates : Gate.Set.t;
       input : Var.Set.t;
       output: Var.Set.t;
       mids : Var.Set.t
@@ -64,13 +70,15 @@ module Make(F : Field.S) = struct
   let pp ppf t =
     let open Format in
     f ppf "{ @[<v>gates= @[<v>%a@];@ mids= @[%a@]@] }"
-      pp_gates t.gates
+      Gate.Set.pp t.gates
       (list ", " Var.pp) (Var.Set.elements t.mids)
 
   let vars gates =
-    Var.Map.fold (fun g (l,r) acc ->
-        let vs = Var.Set.(add g (union (Var.Map.domain l) (Var.Map.domain r))) in
-        Var.Set.union vs acc) gates Var.Set.empty
+    Gate.Set.fold (fun {lhs; l; r} acc ->
+        let lhs = Var.Map.domain lhs in
+        let l = Var.Map.domain l in
+        let r = Var.Map.domain r in
+        Var.Set.(union (union lhs (union l r)) acc)) gates Var.Set.empty
 
   let eval_gate_binding env (vns1, vns2) =
     let open Option.Monad in
@@ -90,25 +98,27 @@ module Make(F : Field.S) = struct
 
   let eval env gates =
     let vars = vars gates in
-    let unks =
-      Var.Map.fold (fun v _ acc -> Var.Set.remove v acc) env vars
-    in
-    let rec loop sol unks rev_fs fs =
+    let unks = Var.Set.diff vars (Var.Map.domain env) in
+    let gates = Gate.Set.elements gates in
+    let rec loop sol unks rev_gs gs =
       if Var.Set.is_empty unks then Ok sol
       else
-        match fs with
+        match gs with
         | [] -> Error sol
-        | ((v, (vns1, vns2)) as f) :: fs -> (
-            match eval_gate_binding sol (vns1, vns2) with
-            | Some i ->
-                loop
-                  (Var.Map.add v i sol)
-                  (Var.Set.remove v unks)
-                  []
-                  (List.rev_append rev_fs fs)
-            | None -> loop sol unks (f :: rev_fs) fs)
+        | (Gate.{lhs; l= vns1; r= vns2} as g) :: gs ->
+            (* lhs must be a singleton of (v, 1) *)
+            match Var.Map.bindings lhs with
+            | [(v, f)] when F.(f = one) ->
+                (match eval_gate_binding sol (vns1, vns2) with
+                 | Some i ->
+                     loop
+                       (Var.Map.add v i sol)
+                       (Var.Set.remove v unks)
+                       [] (List.rev_append rev_gs gs)
+                 | None -> loop sol unks (g::rev_gs) gs)
+            | _ -> invalid_arg "Circuit.eval"
     in
-    loop env unks [] (Var.Map.bindings gates) (* may be slow *)
+    loop env unks [] gates
 
   module Expr' = struct
     type expr' = expr'' list
@@ -183,30 +193,31 @@ module Make(F : Field.S) = struct
         v
     in
     let rec aux (e : Expr'.expr'') =
-      let open Var.Map in
       match e with
-      | Term (None, n) -> (one, n), empty
-      | Term (Some v, n) -> (v, n), empty
+      | Term (None, n) -> (one, n), Gate.Set.empty
+      | Term (Some v, n) -> (v, n), Gate.Set.empty
       | Mul (e1, e2) ->
           let sum1, gs1 =
             List.fold_left (fun (sum, gs) e ->
                 let (v,w), gs' = aux e in
-                (add v w sum, concat gs gs')) (empty, empty) e1
+                (Var.Map.add v w sum, Gate.Set.union gs gs')) (Var.Map.empty, Gate.Set.empty) e1
           in
           let sum2, gs2 =
             List.fold_left (fun (sum, gs) e ->
                 let (v,w), gs' = aux e in
-                (add v w sum, concat gs gs')) (empty, empty) e2
+                (Var.Map.add v w sum, Gate.Set.union gs gs')) (Var.Map.empty, Gate.Set.empty) e2
           in
           let v = mk_var () in
-          (v, F.one), add v (sum1, sum2) @@ concat gs1 gs2
+          ( (v, F.one),
+            Gate.Set.add { lhs= Var.Map.singleton v F.one ; l= sum1; r= sum2 }
+            @@ Gate.Set.union gs1 gs2 )
     in
     let vns, gss = List.split @@ List.map aux e in
-    let gs = List.fold_left Var.Map.concat Var.Map.empty gss in
-    { gates = Var.Map.add out (Var.Map.of_list vns, Var.Map.singleton one F.one) gs;
-      input;
-      output = Var.Set.singleton out;
-      mids= !mids }
+    let g : Gate.t =
+      { lhs= Var.Map.singleton out F.one; l= Var.Map.of_list vns; r= Var.Map.singleton one F.one }
+    in
+    let gates = List.fold_left Gate.Set.union (Gate.Set.singleton g) gss in
+    { gates; input; output = Var.Set.singleton out; mids= !mids }
 
   let of_expr (e : Expr.t) =
     let e' = Expr'.expr' e in

@@ -229,11 +229,11 @@ module Make(C : Ecp.CURVE) = struct
           mids = Var.Set.union circuit.mids secret;
         }
       in
-      let qap, rk = QAP.build circuit.gates in
+      let qap, rg = QAP.build circuit.gates in
 
       (* decompilation test *)
-      let gates = QAP.decompile qap rk in
-      assert (Circuit.equal_gates circuit.gates gates);
+      let gates = QAP.decompile qap rg in
+      assert (Circuit.Gate.Set.equal circuit.gates gates);
 
       circuit, qap
 

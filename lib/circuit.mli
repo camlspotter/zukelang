@@ -1,6 +1,6 @@
 open Misc
 
-module Make(F : Field.S) : sig
+module Make(F : Field.COMPARABLE) : sig
 
   val one : Var.t
   (** Special variable for constants.  For example, 2 is encoded
@@ -11,22 +11,28 @@ module Make(F : Field.S) : sig
   (** The special variable for the output *)
 
   module Gate : sig
-    type gate = F.t Var.Map.t * F.t Var.Map.t
-    (** Multiplication gate.
-        Each side of the inputs is a sum of weighted variables.
+    (** $\Sigma_{k} c_k x_k$  where $x_0 = \mathtt{one}$ *)
+    type affine = F.t Var.Map.t
+    val pp_affine : affine printer
+    val compare_affine : affine comparator
 
-        Ex.  (2x + 3y + w) * (6x + 0y + 10w)
-    *)
+    (** z + 3 = (2y + 3one) * (3z + 4w + 6one) *)
+    type gate = { lhs: affine; l: affine; r: affine }
 
     type t = gate
 
-    val pp : t printer
+    val pp : gate printer
+
+    val compare : gate comparator
+
+    module Set : sig
+      include Set.S with type elt = gate
+      val pp : t printer
+    end
   end
 
-  type gates = Gate.t Var.Map.t
-
   type circuit =
-    { gates : gates; (** Gates with the output variables *)
+    { gates : Gate.Set.t; (** Gates with the output variables *)
       input : Var.Set.t;
       output : Var.Set.t;
       mids : Var.Set.t; (** Intermediate variables *)
@@ -36,13 +42,11 @@ module Make(F : Field.S) : sig
 
   val pp : t printer
 
-  val equal_gates : Gate.t Var.Map.t -> Gate.t Var.Map.t -> bool
-
-  val vars : Gate.t Var.Map.t -> Var.Set.t
+  val vars : Gate.Set.t -> Var.Set.t
 
   val ios : t -> Var.Set.t
 
-  val eval : F.t Var.Map.t -> Gate.t Var.Map.t -> (F.t Var.Map.t, F.t Var.Map.t) result
+  val eval : F.t Var.Map.t -> Gate.Set.t -> (F.t Var.Map.t, F.t Var.Map.t) result
 
   val of_expr : Lang.Make(F).Expr.t -> t
 

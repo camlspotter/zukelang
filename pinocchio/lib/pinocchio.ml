@@ -525,11 +525,11 @@ module Make(C : Ecp.CURVE) = struct
     module NonZK = struct
       let compile e =
         let circuit = Circuit.of_expr e in
-        let qap, rk = QAP.build circuit.gates in
+        let qap, rg = QAP.build circuit.gates in
 
         (* decompilation test *)
-        let gates = QAP.decompile qap rk in
-        assert (Circuit.equal_gates circuit.gates gates);
+        let gates = QAP.decompile qap rg in
+        assert (Circuit.Gate.Set.equal circuit.gates gates);
 
         circuit, qap
 
@@ -565,11 +565,11 @@ module Make(C : Ecp.CURVE) = struct
             input = Var.Set.diff circuit.input secret;
             mids = Var.Set.union circuit.mids secret }
       in
-      let qap, rk = QAP.build circuit.gates in
+      let qap, rg = QAP.build circuit.gates in
 
       (* decompilation test *)
-      let gates = QAP.decompile qap rk in
-      assert (Circuit.equal_gates circuit.gates gates);
+      let gates = QAP.decompile qap rg in
+      assert (Circuit.Gate.Set.equal circuit.gates gates);
       circuit, qap
 
       let keygen = NonZK.keygen
@@ -615,7 +615,9 @@ let test () =
     let circuit, qap = compile e in
     let ekey, vkey = keygen circuit qap in
     let input = Var.Map.of_list [x, Fr.of_int 10] in
+prerr_endline "solving";
     let sol = solve circuit input in
+prerr_endline "solved";
     let output = output_of_solution circuit sol in
     let proof = prove qap ekey sol in
     assert (verify (Var.Map.concat input output) vkey proof);

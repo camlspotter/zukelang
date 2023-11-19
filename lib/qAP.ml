@@ -4,34 +4,35 @@ open Var.Infix
 
 type 'a vwy = { v : 'a; w : 'a; y : 'a }
 
-module Make(F : Field.S) = struct
+module Make(F : Field.COMPARABLE) = struct
 
   type nonrec 'a vwy = 'a vwy = { v : 'a; w : 'a; y : 'a }
 
   module Polynomial = Polynomial.Make(F)
   module Lang = Lang.Make(F)
   module Circuit = Circuit.Make(F)
+  module IntMap = Map.Make(Int)
 
   type t =
     { vwy : Polynomial.t Var.Map.t vwy;
       target : Polynomial.t
     }
 
-  let build (gates : Circuit.Gate.t Var.Map.t) =
-    let rk =
-      List.mapi (fun i (v, _) ->
-          Format.eprintf "gate %a : r_%a = %d@."
-            Var.pp v Var.pp v i;
-          v, F.of_int i) @@ Var.Map.bindings gates in
+  let build (gates : Circuit.Gate.Set.t) =
     let vars = Circuit.vars gates in
 
+    (* $r_g$: gate id *)
+    let rgs = List.mapi (fun rg g -> rg, g) @@ Circuit.Gate.Set.elements gates in
+
+    (* variable -> gate_id -> weight *)
     let make_matrix f =
-      Var.Map.of_set vars @@ fun k -> Var.Map.mapi (f k) gates
+      Var.Map.of_set vars @@ fun k ->
+      IntMap.of_seq @@ Seq.map (fun (rg, g) -> rg, f k g) @@ List.to_seq rgs
     in
 
     let v =
       (* $v_k(r_g) = 1$ when gate $g$ has $c_k$ at the left of op *)
-      make_matrix @@ fun k _g (l, _r) ->
+      make_matrix @@ fun k Circuit.Gate.{l; _} ->
       match Var.Map.find_opt k l with
       | None -> F.zero
       | Some n -> n
@@ -39,7 +40,7 @@ module Make(F : Field.S) = struct
 
     let w =
       (* $w_k(r_g) = 1$ when gate $g$ has $c_k$ at the right of op *)
-      make_matrix @@ fun k _g (_l, r) ->
+      make_matrix @@ fun k Circuit.Gate.{r; _} ->
       match Var.Map.find_opt k r with
       | None -> F.zero
       | Some n -> n
@@ -47,54 +48,53 @@ module Make(F : Field.S) = struct
 
     let y =
       (* $y_k(r_g) = 1$ when gate (v, _, _) , $v = c_k$ *)
-      make_matrix @@ fun k g (_l, _r) ->
-      if k = g then F.one else F.zero
+      make_matrix @@ fun k Circuit.Gate.{lhs; _} ->
+      match Var.Map.find_opt k lhs with
+      | None -> F.zero
+      | Some n -> n
     in
 
     Var.Map.iter (fun k gns ->
-        Var.Map.iter (fun g n ->
-            Format.ef "v_%a(r_%a) = %a # gate %a has %a in the left arg@."
+        IntMap.iter (fun rg n ->
+            Format.ef "v_%a(r_%d) = %a # gate %d has %a in the left arg@."
               Var.pp k
-              Var.pp g
+              rg
               F.pp n
-              Var.pp g
+              rg
               Var.pp k) gns) v;
     Var.Map.iter (fun k gns ->
-        Var.Map.iter (fun g n ->
-            Format.ef "w_%a(r_%a) = %a # gate %a has %a in the right arg@."
+        IntMap.iter (fun rg n ->
+            Format.ef "w_%a(r_%d) = %a # gate %d has %a in the right arg@."
               Var.pp k
-              Var.pp g
+              rg
               F.pp n
-              Var.pp g
+              rg
               Var.pp k) gns) w;
     Var.Map.iter (fun k gns ->
-        Var.Map.iter (fun g n ->
-            Format.ef "y_%a(r_%a) = %a # gate %a outputs %a@."
+        IntMap.iter (fun rg n ->
+            Format.ef "y_%a(r_%d) = %a # gate %d has %a in the LHS@."
               Var.pp k
-              Var.pp g
+              rg
               F.pp n
-              Var.pp g
+              rg
               Var.pp k) gns) y;
 
-    let make_polynomials u =
-      Var.Map.of_set vars @@ fun k ->
-      let uk = u #! k in
-      Polynomial.interpolate
-        (List.map (fun (g, rg) ->
-             let ukrg (* $u_k(r_g)$ *) = uk #! g in
-             rg, ukrg) rk)
+    let make_polynomials (u : F.t IntMap.t Var.Map.t) : Polynomial.t Var.Map.t =
+      Var.Map.map (fun imap ->
+          Polynomial.interpolate
+            (List.map (fun (rg, f) -> F.of_int rg, f)
+             @@ IntMap.bindings imap)) u
     in
 
     let v = make_polynomials v in
     let w = make_polynomials w in
     let y = make_polynomials y in
 
-    let t = Polynomial.z (List.map (fun (_, i) -> i) rk) in
+    let t = Polynomial.z (List.map (fun (rg, _) -> F.of_int rg) rgs) in
 
-    { vwy = { v; w; y }; target = t },
-    Var.Map.of_list rk
+    { vwy = { v; w; y }; target = t }, rgs
 
-  let decompile  {vwy= { v; w; y }; _} (rs : F.t Var.Map.t) =
+  let decompile {vwy= { v; w; y }; _} (rgs : (int * Circuit.Gate.t) list) =
     let dom m =
       Var.Set.of_seq @@ Seq.map fst @@ Var.Map.to_seq m
     in
@@ -103,21 +103,20 @@ module Make(F : Field.S) = struct
     let domy = dom y in
     assert (Var.Set.equal domv domw);
     assert (Var.Set.equal domv domy);
-    Var.Map.of_list @@
-    Var.Map.fold (fun _g r acc ->
+    Circuit.Gate.Set.of_list @@
+    List.fold_left (fun acc (rg, _g) ->
+        let rg = F.of_int rg in
         let f v =
           Var.Map.filter_map (fun _v p ->
-              let w = Polynomial.apply p r in
+              let w = Polynomial.apply p rg in
               if F.(w = zero) then None
               else Some w) v
         in
-        let v = f v in
-        let w = f w in
-        let y = f y in
-        match Var.Map.bindings y with
-        | [y, f] when F.(one = f) -> (y, (v, w)) :: acc
-        | _ -> assert false
-      ) rs []
+        let l = f v in
+        let r = f w in
+        let lhs = f y in
+        Circuit.Gate.{ lhs; l; r } :: acc
+      ) [] rgs
 
   let eval sol { vwy;  target } =
     let eval' (vps : Polynomial.t Var.Map.t) =
