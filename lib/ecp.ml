@@ -48,7 +48,7 @@ end
 
 module type CURVE = sig
   module Fr : sig
-    include Field.S
+    include Field.COMPARABLE
     include G with type t := t and type fr := t
     val ( ** ) : t -> Z.t -> t
     val gen : t Gen.t

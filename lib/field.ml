@@ -29,7 +29,10 @@ module type S = sig
   val ( ~- ) : t -> t
 end
 
-type 'f s = (module S with type t = 'f)
+module type COMPARABLE = sig
+  include S
+  val compare : t -> t -> int
+end
 
 module Int = struct
   (* Not a perfect field but useful *)
