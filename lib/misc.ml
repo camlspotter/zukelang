@@ -1,4 +1,5 @@
 type 'a printer = Format.formatter -> 'a -> unit
+type 'a comparator = 'a -> 'a -> int
 
 module Format = struct
   include Format
