@@ -10,20 +10,25 @@ module Make(F : Field.COMPARABLE) : sig
   val out : Var.t
   (** The special variable for the output *)
 
-  module Gate : sig
+  module Affine : sig
     (** $\Sigma_{k} c_k x_k$  where $x_0 = \mathtt{one}$ *)
     type affine = F.t Var.Map.t
-    val pp_affine : affine printer
-    val compare_affine : affine comparator
+    type t = affine
+
+    val pp : t printer
+    val compare : t comparator
+  end
+
+  module Gate : sig
 
     (** z + 3 = (2y + 3one) * (3z + 4w + 6one) *)
-    type gate = { lhs: affine; l: affine; r: affine }
+    type gate = { lhs: Affine.t; l: Affine.t; r: Affine.t }
 
     type t = gate
 
-    val pp : gate printer
+    val pp : t printer
 
-    val compare : gate comparator
+    val compare : t comparator
 
     module Set : sig
       include Set.S with type elt = gate

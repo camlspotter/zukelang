@@ -13,10 +13,12 @@ module Make(F : Field.COMPARABLE) = struct
   module Lang = Lang.Make(F)
   open Lang
 
-  module Gate = struct
+  module Affine = struct
     type affine = F.t Var.Map.t
 
-    let pp_affine ppf m =
+    type t = affine
+
+    let pp ppf m =
       let open Format in
       Format.seq " + "
         (fun ppf (v, n) ->
@@ -27,24 +29,26 @@ module Make(F : Field.COMPARABLE) = struct
         ppf
       @@ Var.Map.to_seq m
 
-    let compare_affine = Var.Map.compare F.compare
+    let compare = Var.Map.compare F.compare
+  end
 
+  module Gate = struct
     (* z + 3 = (2y + 3one) * (3z + 4w + 6one) *)
-    type gate = { lhs : affine; l : affine; r : affine }
+    type gate = { lhs : Affine.t; l : Affine.t; r : Affine.t }
 
     type t = gate
 
     let pp ppf { lhs; l; r } =
       Format.f ppf "%a = @[(@[%a@]) * (@[%a@])@]"
-        pp_affine lhs
-        pp_affine l
-        pp_affine r
+        Affine.pp lhs
+        Affine.pp l
+        Affine.pp r
 
     let compare a b =
-      match compare_affine a.lhs b.lhs with
+      match Affine.compare a.lhs b.lhs with
       | 0 ->
-          (match compare_affine a.l b.l with
-           | 0 -> compare_affine a.r b.r
+          (match Affine.compare a.l b.l with
+           | 0 -> Affine.compare a.r b.r
            | n -> n)
       | n -> n
 
