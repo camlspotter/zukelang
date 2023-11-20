@@ -51,9 +51,10 @@ module Make(F : Field.COMPARABLE) : sig
 
   val ios : t -> Var.Set.t
 
-  val eval : F.t Var.Map.t -> Gate.Set.t -> (F.t Var.Map.t, F.t Var.Map.t) result
-
   val of_expr : Lang.Make(F).Expr.t -> t
+
+  (** OBSOLETE: only works with circuit made from Lang.Make(_).Flatten *)
+  val eval : F.t Var.Map.t -> Gate.Set.t -> (F.t Var.Map.t, F.t Var.Map.t) result
 
   val test : unit -> unit
 end

@@ -2,9 +2,9 @@ open Misc
 
 open Lang
 
-let one = Var.of_string "~one"
+let one = Var.of_string "$ONE"
 
-let out = Var.of_string "~out"
+let out = Var.of_string "$OUT"
 
 module Make(F : Field.COMPARABLE) = struct
   let one = one
@@ -84,6 +84,7 @@ module Make(F : Field.COMPARABLE) = struct
         let r = Var.Map.domain r in
         Var.Set.(union (union lhs (union l r)) acc)) gates Var.Set.empty
 
+  (* OBSOLETE *)
   let eval_gate_binding env (vns1, vns2) =
     let open Option.Monad in
     let open F in
@@ -100,6 +101,7 @@ module Make(F : Field.COMPARABLE) = struct
     List.fold_left (+) zero a1
     * List.fold_left (+) zero a2
 
+  (* OBSOLETE *)
   let eval env gates =
     let vars = vars gates in
     let unks = Var.Set.diff vars (Var.Map.domain env) in
