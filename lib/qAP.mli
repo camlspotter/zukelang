@@ -1,10 +1,9 @@
-(** QAP triple *)
-type 'a vwy = { v : 'a; w : 'a; y : 'a }
-
 module Make(F : Field.COMPARABLE) : sig
 
   type t =
-    { vwy : Polynomial.Make(F).t Var.Map.t vwy;
+    { v : Polynomial.Make(F).t Var.Map.t;
+      w : Polynomial.Make(F).t Var.Map.t;
+      y : Polynomial.Make(F).t Var.Map.t;
       target : Polynomial.Make(F).t }
 
   val build : Circuit.Make(F).Gate.Set.t -> t * (int * Circuit.Make(F).Gate.t) list

@@ -2,11 +2,7 @@ open Misc
 
 open Var.Infix
 
-type 'a vwy = { v : 'a; w : 'a; y : 'a }
-
 module Make(F : Field.COMPARABLE) = struct
-
-  type nonrec 'a vwy = 'a vwy = { v : 'a; w : 'a; y : 'a }
 
   module Polynomial = Polynomial.Make(F)
   module Lang = Lang.Make(F)
@@ -14,7 +10,9 @@ module Make(F : Field.COMPARABLE) = struct
   module IntMap = Map.Make(Int)
 
   type t =
-    { vwy : Polynomial.t Var.Map.t vwy;
+    { v : Polynomial.t Var.Map.t;
+      w : Polynomial.t Var.Map.t;
+      y : Polynomial.t Var.Map.t;
       target : Polynomial.t
     }
 
@@ -92,9 +90,9 @@ module Make(F : Field.COMPARABLE) = struct
 
     let t = Polynomial.z (List.map (fun (rg, _) -> F.of_int rg) rgs) in
 
-    { vwy = { v; w; y }; target = t }, rgs
+    { v; w; y; target = t }, rgs
 
-  let decompile {vwy= { v; w; y }; _} (rgs : (int * Circuit.Gate.t) list) =
+  let decompile { v; w; y; _} (rgs : (int * Circuit.Gate.t) list) =
     let dom m =
       Var.Set.of_seq @@ Seq.map fst @@ Var.Map.to_seq m
     in
@@ -118,7 +116,7 @@ module Make(F : Field.COMPARABLE) = struct
         Circuit.Gate.{ lhs; l; r } :: acc
       ) [] rgs
 
-  let eval sol { vwy;  target } =
+  let eval sol { v; w; y; target } =
     let eval' (vps : Polynomial.t Var.Map.t) =
       Polynomial.sum
       @@ List.of_seq
@@ -127,9 +125,9 @@ module Make(F : Field.COMPARABLE) = struct
           Polynomial.mul_scalar a p)
       @@ Var.Map.to_seq vps
     in
-    let v = eval' vwy.v in
-    let w = eval' vwy.w in
-    let y = eval' vwy.y in
+    let v = eval' v in
+    let w = eval' w in
+    let y = eval' y in
     let p = Polynomial.Infix.(v * w - y) in
     let h, rem = Polynomial.Infix.(p /% target) in
     assert (Polynomial.is_zero rem);
@@ -150,7 +148,7 @@ module Make(F : Field.COMPARABLE) = struct
     let circuit = Circuit.of_expr e in
     ef "Gates: @[<v>%a@]@." Circuit.pp circuit;
 
-    let ({ vwy=_; target= t } as qap), _rk = build circuit.gates in
+    let ({ target= t; _ } as qap), _rk = build circuit.gates in
     let sol =
       Result.get_ok
       @@ Circuit.eval (Var.Map.of_list [x, F.of_int 3;

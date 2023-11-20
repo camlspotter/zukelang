@@ -74,7 +74,7 @@ module Make(C : Ecp.CURVE) = struct
         yy_io : G1.t Var.Map.t; (* $\{ g_y^{y_k(s)} \}_{k\in [N]}$ *)
       }
 
-    let generate rng (circuit : Circuit.t) QAP.{vwy; target= t} =
+    let generate rng (circuit : Circuit.t) QAP.{v; w; y; target= t} =
       let imid (* $I_{mid}$ *) = circuit.mids in
       let n (* $[N]$ *) = Circuit.ios circuit in
       let m (* [m] *) = Circuit.vars circuit.gates in
@@ -110,12 +110,12 @@ module Make(C : Ecp.CURVE) = struct
 
       let ekey =
         (* $\{ g_v^{v_k(s)} \}_{k\in I_{mid}}$ *)
-        let vv = map_apply_s g1 gv vwy.v imid in
+        let vv = map_apply_s g1 gv v imid in
         (* $\{ g_w^{w_k(s)} \}_{k\in I_{mid}}$ *)
-        let ww1 = map_apply_s g1 gw vwy.w imid in
-        let ww = map_apply_s g2 gw2 vwy.w imid in
+        let ww1 = map_apply_s g1 gw w imid in
+        let ww = map_apply_s g2 gw2 w imid in
         (* $\{ g_y^{y_k(s)} \}_{k\in I_{mid}}$ *)
-        let yy = map_apply_s g1 gy vwy.y imid in
+        let yy = map_apply_s g1 gy y imid in
 
         (* $\{\alpha x_k\}_k$ *)
         let mul_map (type t) (module G : G with type t = t) m a =
@@ -150,10 +150,10 @@ module Make(C : Ecp.CURVE) = struct
         let ybt (* $g_y^{\beta t(s)}$ *) = G1.(gy * b * t) in
 
         (* $\{ g_1^{v_k(s)} \}_{k\in [m]$ *)
-        let v_all = map_apply_s g1 G1.one vwy.v m in
+        let v_all = map_apply_s g1 G1.one v m in
 
         (* $\{ g_1^{w_k(s)} \}_{k\in [m]$ *)
-        let w_all = map_apply_s g1 G1.one vwy.w m in
+        let w_all = map_apply_s g1 G1.one w m in
 
         { vv; ww; yy; vav; waw; yay; si; bvwy;
           si2; vt; wt; yt; vavt; wawt; yayt; vbt; wbt; ybt; v_all; w_all }
@@ -169,9 +169,9 @@ module Make(C : Ecp.CURVE) = struct
         let bgm (* $g^{\beta\gamma}$ *) = G1.(gm * b) in
         let bgm2 (* $g^{\beta\gamma}$ *) = G2.(gm2 * b) in
         let yt (* $g_y^{t(s)}$ *) = G2.(gy2 * t) in
-        let vv_io (* $\{g_v^{v_k(s)}\}_{k\in [N]}$ *) = map_apply_s g1 gv vwy.v n in
-        let ww_io (* $\{g_w^{w_k(s)}\}_{k\in [N]}$ *) = map_apply_s g2 gw2 vwy.w n in
-        let yy_io (* $\{g_y^{y_k(s)}\}_{k\in [N]}$ *) = map_apply_s g1 gy vwy.y n in
+        let vv_io (* $\{g_v^{v_k(s)}\}_{k\in [N]}$ *) = map_apply_s g1 gv v n in
+        let ww_io (* $\{g_w^{w_k(s)}\}_{k\in [N]}$ *) = map_apply_s g2 gw2 w n in
+        let yy_io (* $\{g_y^{y_k(s)}\}_{k\in [N]}$ *) = map_apply_s g1 gy y n in
         { one;
           one2;
           av;

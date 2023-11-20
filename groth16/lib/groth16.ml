@@ -53,9 +53,9 @@ module Make(C : Ecp.CURVE) = struct
     let z (* Z(x) *) = qap.target in
 
     let l (* Li(X) = β *Ai(X) + α * Bi(X) + Ci(X) *) =
-      let pA = qap.vwy.v in
-      let pB = qap.vwy.w in
-      let pC = qap.vwy.y in
+      let pA = qap.v in
+      let pB = qap.w in
+      let pC = qap.y in
       Var.Map.mapi (fun i pa ->
           let pb = pB #! i in
           let pc = pC #! i in
@@ -119,8 +119,8 @@ module Make(C : Ecp.CURVE) = struct
   let prove rng (pkey : pkey) (qap : QAP.t) w (* solution with 1 *) h =
     let r = Fr.gen rng in
     let s = Fr.gen rng in
-    let pA (* A *) = qap.vwy.v in
-    let pB (* B *) = qap.vwy.w in
+    let pA (* A *) = qap.v in
+    let pB (* B *) = qap.w in
     let a : G1.t (* A *) =
       (* A =  α + w0*A0(τ) + w1*A1(τ) + w2*A2(τ) + w3*A3(τ) + … + wm*Am(τ) + r*δ *)
       let open G1 in
