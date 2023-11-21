@@ -112,7 +112,14 @@ module Bls12_381 = struct
   module Fr = struct
     module Fr = struct
       include Fr
-      let pp ppf fr = Z.pp_print ppf (to_z fr)
+      let pp ppf fr =
+        let z = to_z fr in
+        let z =
+          if Z.(z > Fr.order - of_int 1_000_000) then
+            Z.(z - Fr.order)
+          else z
+        in
+        Z.pp_print ppf z
       let (~-) = negate
       let ( - ) x y = x + ~- y
       let equal = eq
