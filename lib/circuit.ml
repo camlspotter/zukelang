@@ -37,16 +37,15 @@ module Make(F : Field.COMPARABLE) = struct
     let compare = Var.Map.compare F.compare
 
     let singleton = Var.Map.singleton
+    let of_var v = singleton v (F.of_int 1)
+    let add = Var.Map.union (fun _v f1 f2 -> Some F.(f1 + f2))
+    let mul_scalar t f = Var.Map.map F.(( * ) f) t
+    let neg t = mul_scalar t (F.of_int (-1))
     let of_F f =
       if F.(f = zero) then Var.Map.empty
       else singleton one f
     let of_int i = of_F (F.of_int i)
     let zero = of_int 0
-    let of_var v = singleton v (F.of_int 1)
-    let add = Var.Map.union (fun _v f1 f2 -> Some F.(f1 + f2))
-    let mul_scalar t f = Var.Map.map F.(( * ) f) t
-    let neg t = mul_scalar t (F.of_int (-1))
-    let zero = Var.Map.empty
     let is_zero = Var.Map.is_empty
     let sub a b =
       if is_zero b then a
