@@ -118,3 +118,5 @@ module Z = struct
   include Z
   let pp = pp_print
 end
+
+let failwithf fmt = Format.kasprintf failwith fmt
