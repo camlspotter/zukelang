@@ -1,0 +1,1 @@
+let () = Zukelang.Comp.test ()
