@@ -17,6 +17,26 @@ module Make(F : Field.COMPARABLE) : sig
 
     val pp : t printer
     val compare : t comparator
+
+    val singleton : Var.t -> F.t -> t
+    val of_F : F.t -> t
+    val of_int : int -> t
+    val of_var : Var.t -> t
+    val add : t -> t -> t
+    val sub : t -> t -> t
+    val mul_scalar : t -> F.t -> t
+    val neg : t -> t
+    val zero : t
+    val is_zero : t -> bool
+    val is_const : t -> F.t option
+
+    module Infix : sig
+      val (!) : int -> t
+      val (+) : t -> t -> t
+      val (-) : t -> t -> t
+      val ( *$ ) : t -> F.t -> t
+      val (~-) : t -> t
+    end
   end
 
   module Gate : sig

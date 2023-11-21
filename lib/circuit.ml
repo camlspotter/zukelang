@@ -20,16 +20,52 @@ module Make(F : Field.COMPARABLE) = struct
 
     let pp ppf m =
       let open Format in
-      Format.seq " + "
-        (fun ppf (v, n) ->
-           if v = one then
-             F.pp ppf n
-           else
-             f ppf "%a%a" F.pp n Var.pp v)
-        ppf
-      @@ Var.Map.to_seq m
+      if Var.Map.is_empty m then
+        Format.f ppf "0"
+      else
+        Format.seq " + "
+          (fun ppf (v, n) ->
+             if v = one then
+               F.pp ppf n
+             else if F.(n = one) then
+               Var.pp ppf v
+             else
+               f ppf "%a * %a" F.pp n Var.pp v)
+          ppf
+        @@ Var.Map.to_seq m
 
     let compare = Var.Map.compare F.compare
+
+    let singleton = Var.Map.singleton
+    let of_F f =
+      if F.(f = zero) then Var.Map.empty
+      else singleton one f
+    let of_int i = of_F (F.of_int i)
+    let zero = of_int 0
+    let of_var v = singleton v (F.of_int 1)
+    let add = Var.Map.union (fun _v f1 f2 -> Some F.(f1 + f2))
+    let mul_scalar t f = Var.Map.map F.(( * ) f) t
+    let neg t = mul_scalar t (F.of_int (-1))
+    let zero = Var.Map.empty
+    let is_zero = Var.Map.is_empty
+    let sub a b =
+      if is_zero b then a
+      else add a (mul_scalar b (F.of_int (-1)))
+    let is_const a =
+      let a' = Var.Map.remove one a in
+      if Var.Map.is_empty a' then
+        match Var.Map.find_opt one a with
+        | None -> Some F.zero
+        | Some f -> Some f
+      else None
+
+    module Infix = struct
+      let (!) = of_int
+      let (+) = add
+      let (-) = sub
+      let ( *$ ) = mul_scalar
+      let (~-) = neg
+    end
   end
 
   module Gate = struct
@@ -39,7 +75,7 @@ module Make(F : Field.COMPARABLE) = struct
     type t = gate
 
     let pp ppf { lhs; l; r } =
-      Format.f ppf "%a = @[(@[%a@]) * (@[%a@])@]"
+      Format.f ppf "@[<2>%a@ = @[@[(%a)@]@ * @[(%a)@]@]@]"
         Affine.pp lhs
         Affine.pp l
         Affine.pp r
