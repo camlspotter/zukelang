@@ -5,7 +5,10 @@ open Utils
 
 module Lang = ZLang
 
-module Make(F : Field.COMPARABLE) = struct
+module Make(F : sig
+    include Field.COMPARABLE
+    val gen : t Gen.t
+  end ) = struct
   module Lang = Lang.Make(F)
 
   module Circuit = Circuit.Make(F)
@@ -83,7 +86,22 @@ module Make(F : Field.COMPARABLE) = struct
           if to_bool a then b else c
       | Affine a ->
           Var.Map.fold (fun k ck acc ->
-              F.(List.assoc k env * ck + acc)) a F.zero
+              try
+                F.(List.assoc k env * ck + acc)
+              with
+              | Not_found ->
+                  Format.ef "Var %a not found@." Var.pp k;
+                  assert false
+            ) a F.zero
+
+    let rec eval_list env = function
+      | [] -> env
+      | (v,c)::codes ->
+          Format.ef "eval %a = %a ...@." Var.pp v pp c;
+          let value = eval env c in
+          Format.ef "eval %a = %a@." Var.pp v F.pp value;
+          let env = (v, value) :: env in
+          eval_list env codes
   end
 
   module GateM = struct
@@ -258,34 +276,37 @@ module Make(F : Field.COMPARABLE) = struct
 
   let compile t =
     let a, state = compile [] t GateM.empty in
-    match Var.Map.bindings a (* XXX Affine.bindings or to_list *) with
-    | [] ->
-        state.gates, state.inputs, Var.Set.empty, state.codes
-    | [v, _] when v = Circuit.one ->
-        state.gates, state.inputs, Var.Set.empty, state.codes
-    | [v, f] when F.(f = one) ->
-        state.gates, state.inputs, Var.Set.singleton v, state.codes
-    | [_] ->
-        (* Weird.  Add another gate for a workaround *)
-        let vo = Lang.var () in
-        let o = Affine.of_var vo in
-        let (), state =
-          GateM.(
-            let* () = add_code vo (Affine a) in
-            add_gate o a (Affine.Infix.(!) 1)
-          ) state
-        in
-        state.gates, state.inputs, Var.Set.singleton vo, state.codes
-    | _ ->
-        let vo = Lang.var () in
-        let o = Affine.of_var vo in
-        let (), state =
-          GateM.(
-            let* () = add_code vo (Affine a) in
-            add_gate o a (Affine.Infix.(!) 1)
-          ) state
-        in
-        state.gates, state.inputs, Var.Set.singleton vo, state.codes
+    let gates, inputs, outputs, rev_codes =
+      match Var.Map.bindings a (* XXX Affine.bindings or to_list *) with
+      | [] ->
+          state.gates, state.inputs, Var.Set.empty, state.codes
+      | [v, _] when v = Circuit.one ->
+          state.gates, state.inputs, Var.Set.empty, state.codes
+      | [v, f] when F.(f = one) ->
+          state.gates, state.inputs, Var.Set.singleton v, state.codes
+      | [_] ->
+          (* Weird.  Add another gate for a workaround *)
+          let vo = Lang.var () in
+          let o = Affine.of_var vo in
+          let (), state =
+            GateM.(
+              let* () = add_code vo (Affine a) in
+              add_gate o a (Affine.Infix.(!) 1)
+            ) state
+          in
+          state.gates, state.inputs, Var.Set.singleton vo, state.codes
+      | _ ->
+          let vo = Lang.var () in
+          let o = Affine.of_var vo in
+          let (), state =
+            GateM.(
+              let* () = add_code vo (Affine a) in
+              add_gate o a (Affine.Infix.(!) 1)
+            ) state
+          in
+          state.gates, state.inputs, Var.Set.singleton vo, state.codes
+    in
+    gates, inputs, outputs, List.rev rev_codes
 
   let test e =
     let open Format in
@@ -310,7 +331,37 @@ module Make(F : Field.COMPARABLE) = struct
 
     ef "code: @[<v>%a@]@."
       (list "@," (fun ppf (v, e) -> f ppf "let %a = %a" Var.pp v Code.pp e))
-      (List.rev codes)
+      codes;
+
+    prerr_endline "Lang.eval";
+    let inputs =
+      let rng = Random.State.make_self_init () in
+      List.map (fun (v, (_, ty)) ->
+          v,
+          match ty with
+          | GateM.Field -> Lang.Field (F.gen rng)
+          | Bool -> Lang.Bool (Gen.int 2 rng = 0))
+      @@ Var.Map.bindings inputs
+    in
+
+    let o = Lang.eval inputs e in
+
+    prerr_endline "Code.eval";
+    let env =
+      Code.eval_list
+        ((Circuit.one, F.one) ::
+         List.map (fun (v, value) ->
+             v,
+             match value with
+             | Lang.Field f -> f
+             | Bool true -> F.one
+             | Bool false -> F.zero) inputs) codes
+    in
+    Var.Set.iter (fun o' ->
+        Format.ef "output %a...@." Var.pp o';
+        let f = List.assoc o' env in
+        Format.ef "output %a = %a@." Var.pp o' F.pp f;
+        assert ((Lang.Field f = o))) outputs
 end
 
 let test () =
