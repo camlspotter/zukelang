@@ -26,6 +26,8 @@ module Make(F : Field.COMPARABLE) = struct
     | Cast : _ t -> 'a t
     | Let : Var.t * 'a t * 'b t -> 'b t
     | Var : Var.t -> 'a t
+    | Neg : F.t t -> F.t t
+    | Assert : F.t t * F.t t * 'a t -> 'a t
 
   let rec ptree : type a. a t -> Ppxlib_ast.Ast.expression =
     let loc = Location.none in
@@ -49,6 +51,8 @@ module Make(F : Field.COMPARABLE) = struct
     | To_field t -> [%expr to_field [%e ptree t]]
     | Let (v, t1, t2) -> [%expr let [%p Pat.var {txt= Var.to_string v; loc= Location.none}] = [%e ptree t1] in [%e ptree t2]]
     | Cast t -> ptree t
+    | Neg t -> [%expr ~- [%e ptree t]]
+    | Assert (t1, t2, t3) -> [%expr assert ([%e ptree t1] = [%e ptree t2]); [%e ptree t3]]
 
   let pp ppf t = Ppxlib_ast.Pprintast.expression ppf @@ ptree t
 
@@ -80,6 +84,11 @@ module Make(F : Field.COMPARABLE) = struct
       | Field a, Field b -> Field F.(a - b)
       | _, Field b when F.(b = zero) -> a
       | _ -> Sub (a, b)
+
+      let (~-) a =
+      match a with
+      | Field a -> Field F.(~- a)
+      | _ -> Neg a
 
     let ( * ) a b =
       match a, b with
@@ -123,6 +132,8 @@ module Make(F : Field.COMPARABLE) = struct
     let (==) a b = Eq (a, b)
 
     let cast a = Cast a
+
+    let assert_ (a, b) c = Assert (a, b, c)
 
     let rec in_let t f =
       match t with
