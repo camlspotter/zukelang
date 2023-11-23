@@ -1,5 +1,5 @@
 (executable
   (name main)
-  (libraries zarith bls12-381 pinocchio)
+  (libraries zarith bls12-381 pinocchio zukelang)
   (flags :standard -warn-error -9-32-34-37)
   )

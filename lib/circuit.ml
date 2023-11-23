@@ -57,6 +57,7 @@ module Make(F : Field.COMPARABLE) = struct
         | None -> Some F.zero
         | Some f -> Some f
       else None
+    let vars = Var.Map.domain
 
     module Infix = struct
       let (!) = of_int
@@ -87,6 +88,9 @@ module Make(F : Field.COMPARABLE) = struct
            | n -> n)
       | n -> n
 
+    let vars { lhs; l; r } =
+      Var.Set.(union (Affine.vars lhs) @@ union (Affine.vars l) (Affine.vars r))
+
     module Set = struct
       include Set.Make(struct
           type t = gate
@@ -94,6 +98,8 @@ module Make(F : Field.COMPARABLE) = struct
         end)
 
       let pp ppf s = Format.(seq ",@ " pp ppf @@ to_seq s)
+
+      let vars gs = fold (fun gate acc -> Var.Set.union (vars gate) acc) gs Var.Set.empty
     end
   end
 

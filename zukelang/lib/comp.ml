@@ -27,6 +27,16 @@ module Make(F : sig
 
     type t = code
 
+    module S = struct
+      let ( * ) a b = Mul (a, b)
+      let (/) a b = Div (a, b)
+      let not a = Not a
+      let (||) a b = Or (a, b)
+      let (!&) a = Affine a
+      let (==) a b = Eq (a, b)
+      let if_ a b c = If (a, b, c)
+    end
+
     let rec pp ppf =
       let open Format in
       function
@@ -97,9 +107,10 @@ module Make(F : sig
     let rec eval_list env = function
       | [] -> env
       | (v,c)::codes ->
-          Format.ef "eval %a = %a ...@." Var.pp v pp c;
+          Format.ef "eval %a = %a@." Var.pp v pp c;
           let value = eval env c in
-          Format.ef "eval %a = %a@." Var.pp v F.pp value;
+          Format.ef "        = %a@." F.pp value;
+          if List.mem_assoc v env then assert false;
           let env = (v, value) :: env in
           eval_list env codes
   end
@@ -128,13 +139,13 @@ module Make(F : sig
 
     let add_input : type a . Var.t -> Lang.security -> a Lang.ty -> unit t = fun v sec ty ->
       fun s ->
-        (* XXX check double add *)
+        if Var.Map.mem v s.inputs then assert false;
         let ty = match ty with Field -> Field | Bool -> Bool in
         (), { s with inputs = Var.Map.add v (sec, ty) s.inputs }
 
     let add_code : Var.t -> Code.t -> unit t = fun v e ->
       fun s ->
-        (* XXX check double add *)
+        if List.mem_assoc v s.codes then assert false;
         (), { s with codes= (v, e) :: s.codes }
   end
 
@@ -173,7 +184,7 @@ module Make(F : sig
            | _, Some f2 -> return @@ t1 *$ f2
            | _ ->
                let va, a = var () in
-               let* () = add_code va (Mul (Affine t1, Affine t2)) in
+               let* () = add_code va Code.S.(!&t1 * !&t2) in
                let* () = add_gate a t1 t2 in
                return a)
       | Div (a, b) ->
@@ -190,8 +201,8 @@ module Make(F : sig
                     1 = b * c *)
                let vc, c = var () in
                let vd, d = var () in
-               let* () = add_code vc (Div (Affine !1, Affine b)) in
-               let* () = add_code vd (Mul (Affine a, Affine c)) in
+               let* () = add_code vc Code.S.(!& !1 / !& b) in
+               let* () = add_code vd Code.S.(!&a * !& c) in
                let* () = add_gate !1 b c in
                let* () = add_gate d a c in
                return d)
@@ -204,7 +215,7 @@ module Make(F : sig
           *)
           let* a = compile env a in
           let vb, b = var () in
-          let* () = add_code vb (Not (Affine a)) in
+          let* () = add_code vb Code.S.(not !&a) in
           let* () = add_gate !0 a b in
           let* () = add_gate !1 (a + b) !1 in
           return b
@@ -220,8 +231,8 @@ module Make(F : sig
           let vc, c = var () in
           let vd, d = var () in
           let a_plus_b = a + b in (* a + b creates no gate *)
-          let* () = add_code vc (Or (Affine a, Affine b)) in
-          let* () = add_code vd (If (Affine c, Div (Affine !1, Affine a_plus_b), Affine !0)) in
+          let* () = add_code vc Code.S.(!&a || !&b) in
+          let* () = add_code vd Code.S.(if_ !&c (!& !1 / !& a_plus_b) !& !0) in
           let* () = add_gate c a_plus_b d in
           let* () = add_gate !0 a_plus_b (!1 - c) in
           return c
@@ -247,7 +258,7 @@ module Make(F : sig
                | Some b_c ->
                    return @@ c + a *$ b_c
                | None ->
-                   let* () = add_code vd (Mul (Affine a, Affine b_c)) in
+                   let* () = add_code vd Code.S.(!&a * !&b_c) in
                    let* () = add_gate d a b_c in
                    return @@ c + d)
       | Eq (a, b) ->
@@ -261,8 +272,8 @@ module Make(F : sig
           let* b = compile env b in
           let vc, c = var () in
           let vd, d = var () in
-          let* () = add_code vc (Eq (Affine a, Affine b)) in
-          let* () = add_code vd (If (Affine c, Affine !0, Div (Affine !1, Affine (a - b)))) in
+          let* () = add_code vc Code.S.(!&a == !&b) in
+          let* () = add_code vd Code.S.(if_ !&c !& !0 (!& !1 / !&(a - b))) in
           let* () = add_gate (!1 - c) (a - b) d in
           let* () = add_gate !0 (a - b) c in
           return c
@@ -290,7 +301,7 @@ module Make(F : sig
           let o = Affine.of_var vo in
           let (), state =
             GateM.(
-              let* () = add_code vo (Affine a) in
+              let* () = add_code vo Code.S.(!&a) in
               add_gate o a (Affine.Infix.(!) 1)
             ) state
           in
@@ -300,7 +311,7 @@ module Make(F : sig
           let o = Affine.of_var vo in
           let (), state =
             GateM.(
-              let* () = add_code vo (Affine a) in
+              let* () = add_code vo Code.S.(!&a) in
               add_gate o a (Affine.Infix.(!) 1)
             ) state
           in

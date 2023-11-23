@@ -1,5 +1,11 @@
 open Utils
 
+let var =
+  let cntr = ref 0 in
+  fun () ->
+    incr cntr;
+    Var.of_string (Printf.sprintf "v%d" !cntr)
+
 module Make(F : Field.COMPARABLE) = struct
 
   type 'a ty =
@@ -56,11 +62,7 @@ module Make(F : Field.COMPARABLE) = struct
 
   let pp ppf t = Ppxlib_ast.Pprintast.expression ppf @@ ptree t
 
-  let var =
-    let cntr = ref 0 in
-    fun () ->
-      incr cntr;
-      Var.of_string (Printf.sprintf "v%d" !cntr)
+  let var = var
 
   module S = struct
 

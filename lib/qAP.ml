@@ -52,6 +52,7 @@ module Make(F : Field.COMPARABLE) = struct
       | Some n -> n
     in
 
+(*
     Var.Map.iter (fun k gns ->
         IntMap.iter (fun rg n ->
             Format.ef "v_%a(r_%d) = %a # gate %d has %a in the left arg@."
@@ -76,6 +77,7 @@ module Make(F : Field.COMPARABLE) = struct
               F.pp n
               rg
               Var.pp k) gns) y;
+*)
 
     let make_polynomials (u : F.t IntMap.t Var.Map.t) : Polynomial.t Var.Map.t =
       Var.Map.map (fun imap ->

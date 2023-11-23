@@ -9,3 +9,4 @@ module Circuit = Circuit
 module QAP = QAP
 module C = C
 module FFT = FFT
+module StateM = StateM

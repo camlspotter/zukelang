@@ -29,6 +29,7 @@ module Make(F : Field.COMPARABLE) : sig
     val zero : t
     val is_zero : t -> bool
     val is_const : t -> F.t option
+    val vars : t -> Var.Set.t
 
     module Infix : sig
       val (!) : int -> t
@@ -50,9 +51,12 @@ module Make(F : Field.COMPARABLE) : sig
 
     val compare : t comparator
 
+    val vars : t -> Var.Set.t
+
     module Set : sig
       include Set.S with type elt = gate
       val pp : t printer
+      val vars : t -> Var.Set.t
     end
   end
 
