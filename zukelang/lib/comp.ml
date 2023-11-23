@@ -134,10 +134,9 @@ module Make(F : Field.COMPARABLE) = struct
       | Field f -> return @@ Affine.of_F f
       | Bool true -> return !1
       | Bool false -> return !0
-      | Input (security, ty) ->
-          let va, a = var () in
-          let* () = add_input va security ty in
-          return a
+      | Input (v, security, ty) ->
+          let* () = add_input v security ty in
+          return @@ of_var v
       | Add (t1, t2) ->
           let* t1 = compile env t1 in
           let* t2 = compile env t2 in
@@ -256,7 +255,6 @@ module Make(F : Field.COMPARABLE) = struct
           let env = (v, a) :: env in
           compile env b
       | Var v -> return @@ List.assoc v env
-      | Assert _ -> assert false
 
   let compile t =
     let a, state = compile [] t GateM.empty in
