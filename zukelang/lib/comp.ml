@@ -1,15 +1,13 @@
 (* to avoid silly name crash *)
-module ZLang = Lang
+module ZKLang = Lang
 
 open Utils
-
-module Lang = ZLang
 
 module Make(F : sig
     include Field.COMPARABLE
     val gen : t Gen.t
   end ) = struct
-  module Lang = Lang.Make(F)
+  module Lang = ZKLang.Make(F)
 
   module Circuit = Circuit.Make(F)
 
@@ -59,6 +57,14 @@ module Make(F : sig
       | If (t1, t2, t3) -> vars t1 ++ vars t2 ++ vars t3
       | Affine a -> Var.Map.domain a
 
+    type env = F.t Var.Map.t
+
+    let convert_env =
+      Var.Map.map (function
+          | Lang.Field f -> f
+          | Bool true -> F.one
+          | Bool false -> F.zero)
+
     let rec eval env =
       let to_bool f =
         if F.(f = zero) then false
@@ -97,7 +103,7 @@ module Make(F : sig
       | Affine a ->
           Var.Map.fold (fun k ck acc ->
               try
-                F.(List.assoc k env * ck + acc)
+                F.(Var.Map.find k env * ck + acc)
               with
               | Not_found ->
                   Format.ef "Var %a not found@." Var.pp k;
@@ -110,14 +116,19 @@ module Make(F : sig
           Format.ef "eval %a = %a@." Var.pp v pp c;
           let value = eval env c in
           Format.ef "        = %a@." F.pp value;
-          if List.mem_assoc v env then assert false;
-          let env = (v, value) :: env in
+          if Var.Map.mem v env then assert false;
+          let env = Var.Map.add v value env in
           eval_list env codes
   end
 
-  module GateM = struct
-    type ty = Field | Bool
+  type ty = Field | Bool
 
+  let gen_value ty rng =
+    match ty with
+    | Field -> F.gen rng
+    | Bool -> F.of_int (Gen.int 2 rng)
+
+  module GateM = struct
     let pp_ty ppf ty =
       Format.pp_print_string ppf (match ty with Field -> "field" | Bool -> "bool")
 
@@ -127,7 +138,11 @@ module Make(F : sig
         codes : (Var.t * Code.t) list; (* reversed order *)
       }
 
-    let empty = { gates= Gate.Set.empty; inputs= Var.Map.empty; codes= [] }
+    let init =
+      { gates= Gate.Set.empty;
+        inputs= Var.Map.singleton Circuit.one (Lang.Public, Field);
+        codes= []
+      }
 
     include StateM
 
@@ -278,15 +293,23 @@ module Make(F : sig
           let* () = add_gate !0 (a - b) c in
           return c
       | To_field t -> compile env t
-      | Cast t -> compile env t
+
       | Let (v, a, b) ->
           let* a = compile env a in
           let env = (v, a) :: env in
           compile env b
       | Var v -> return @@ List.assoc v env
 
+  type t =
+    { gates : Gate.Set.t;
+      inputs : (Lang.security * ty) Var.Map.t;
+      mids : Var.Set.t;
+      outputs : Var.Set.t;
+      codes : (Var.var * Code.code) list
+    }
+
   let compile t =
-    let a, state = compile [] t GateM.empty in
+    let a, state = compile [] t GateM.init in
     let gates, inputs, outputs, rev_codes =
       match Var.Map.bindings a (* XXX Affine.bindings or to_list *) with
       | [] ->
@@ -317,12 +340,15 @@ module Make(F : sig
           in
           state.gates, state.inputs, Var.Set.singleton vo, state.codes
     in
-    gates, inputs, outputs, List.rev rev_codes
+    let mids =
+      Var.Set.(diff (Gate.Set.vars gates) (union (Var.Map.domain inputs) outputs))
+    in
+    { gates; inputs; mids; outputs; codes= List.rev rev_codes }
 
   let test e =
     let open Format in
     ef "code: %a@." Lang.pp e;
-    let gates, inputs, outputs, codes = compile e in
+    let { gates; inputs; outputs; codes; _ }  = compile e in
 
     ef "public inputs: @[%a@]@."
       (list ",@ " (fun ppf (v, ty) -> f ppf "%a : %a" Var.pp v GateM.pp_ty ty))
@@ -347,12 +373,12 @@ module Make(F : sig
     prerr_endline "Lang.eval";
     let inputs =
       let rng = Random.State.make_self_init () in
-      List.map (fun (v, (_, ty)) ->
-          v,
-          match ty with
-          | GateM.Field -> Lang.Field (F.gen rng)
-          | Bool -> Lang.Bool (Gen.int 2 rng = 0))
-      @@ Var.Map.bindings inputs
+      Var.Map.mapi (fun v (_, ty) ->
+          if v = Circuit.one then Lang.Field F.one
+          else
+            match ty with
+            | Field -> Lang.Field (F.gen rng)
+            | Bool -> Lang.Bool (Gen.int 2 rng = 0)) inputs
     in
 
     let o = Lang.eval inputs e in
@@ -360,9 +386,7 @@ module Make(F : sig
     prerr_endline "Code.eval";
     let env =
       Code.eval_list
-        ((Circuit.one, F.one) ::
-         List.map (fun (v, value) ->
-             v,
+        (Var.Map.map (fun value ->
              match value with
              | Lang.Field f -> f
              | Bool true -> F.one
@@ -370,7 +394,7 @@ module Make(F : sig
     in
     Var.Set.iter (fun o' ->
         Format.ef "output %a...@." Var.pp o';
-        let f = List.assoc o' env in
+        let f = Var.Map.find o' env in
         Format.ef "output %a = %a@." Var.pp o' F.pp f;
         assert ((Lang.Field f = o))) outputs
 end

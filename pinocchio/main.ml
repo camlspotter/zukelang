@@ -10,7 +10,7 @@ module C = Ecp.Bls12_381
 module F = C.Fr
 module Lang = Zukelang.Lang.Make(F)
 module Comp = Zukelang.Comp.Make(F)
-module Circuit = Comp.Circuit
+module Circuit = Circuit.Make(F)
 module QAP = QAP.Make(F)
 module Pinocchio = Pinocchio.Make(C)
 
@@ -19,19 +19,16 @@ let test e =
 
   ef "code: %a@." Lang.pp e;
 
-  let gates, inputs, outputs, codes = Comp.compile e in
+  let Comp.{ gates; inputs; mids; outputs; codes } = Comp.compile e in
   let circuit =
-    let vars = Circuit.Gate.Set.vars gates in
     let inputs = Var.Map.bindings inputs in
     let inputs_public =
-      Circuit.one ::
       List.filter_map (function
           | (_, (Lang.Secret, _)) -> None
           | (v, _) -> Some v) inputs
     in
     let output = outputs in
     let input = Var.Set.of_list inputs_public in
-    let mids = Var.Set.(diff (diff vars input) output) in
     Circuit.{ gates; input; output; mids }
   in
   ef "circuit @[<v>%a@]@." Circuit.pp circuit;
@@ -46,16 +43,12 @@ let test e =
 
   let rec eval () =
     let env =
-      (Circuit.one, F.one) ::
-      List.map (fun (v, (_, ty))->
-          v,
-          match ty with
-          | Comp.GateM.Field -> F.gen rng
-          | Bool -> F.of_int (Gen.int 2 rng)) (Var.Map.bindings inputs)
+      Var.Map.mapi (fun v (_, ty) ->
+          if v = Circuit.one then F.one
+          else Comp.gen_value ty rng) inputs
     in
-    ef "inputs @[<v>%a@]@."
-      Format.(list ",@ " (fun ppf (v, n) -> f ppf "%a = %a" Var.pp v F.pp n)) env;
-    match Var.Map.of_list @@ Comp.Code.eval_list env codes with
+    ef "inputs @[<v>%a@]@." (Var.Map.pp F.pp) env;
+    match Comp.Code.eval_list env codes with
     | exception Division_by_zero ->
         ef "Division by zero. Re-evaluating...@.";
         eval ()

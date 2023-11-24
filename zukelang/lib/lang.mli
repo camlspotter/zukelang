@@ -2,11 +2,11 @@ open Utils
 
 module Make(F : Field.COMPARABLE) : sig
 
+  type security = Public | Secret
+
   type 'a ty =
     | Field : F.t ty
     | Bool : bool ty
-
-  type security = Public | Secret
 
   (** Type of ZK computation *)
   type 'a t =
@@ -23,7 +23,6 @@ module Make(F : Field.COMPARABLE) : sig
     | If : bool t * 'a t * 'a t -> 'a t
     | Eq : 'a t * 'a t -> bool t
     | To_field : _ t -> F.t t (* cast *)
-    | Cast : _ t -> 'a t
     | Let : Var.t * 'a t * 'b t -> 'b t
     | Var : Var.t -> 'a t
     | Neg : F.t t -> F.t t
@@ -36,8 +35,6 @@ module Make(F : Field.COMPARABLE) : sig
 
     val ty_field : F.t ty
     val ty_bool : bool ty
-
-    type nonrec security = security = Public | Secret
 
     val public : security
     val secret : security
@@ -66,15 +63,13 @@ module Make(F : Field.COMPARABLE) : sig
     val let_ : Var.t -> _ t -> 'b t -> 'b t
 
     val (==) : 'a t -> 'a t -> bool t
-
-    val cast : _ t -> 'a t
   end
 
   type value =
     | Field of F.t
     | Bool of bool
 
-  type env = (Var.t * value) list
+  type env = value Var.Map.t
 
   val eval : env -> 'a t -> value
 end

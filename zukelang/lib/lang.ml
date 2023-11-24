@@ -29,7 +29,6 @@ module Make(F : Field.COMPARABLE) = struct
     | If : bool t * 'a t * 'a t -> 'a t
     | Eq : 'a t * 'a t -> bool t
     | To_field : _ t -> F.t t (* cast *)
-    | Cast : _ t -> 'a t
     | Let : Var.t * 'a t * 'b t -> 'b t
     | Var : Var.t -> 'a t
     | Neg : F.t t -> F.t t
@@ -57,7 +56,6 @@ module Make(F : Field.COMPARABLE) = struct
     | Eq (t1, t2) -> [%expr [%e ptree t1] == [%e ptree t2]]
     | To_field t -> [%expr to_field [%e ptree t]]
     | Let (v, t1, t2) -> [%expr let [%p Pat.var {txt= Var.to_string v; loc= Location.none}] = [%e ptree t1] in [%e ptree t2]]
-    | Cast t -> ptree t
     | Neg t -> [%expr ~- [%e ptree t]]
 
   let pp ppf t = Ppxlib_ast.Pprintast.expression ppf @@ ptree t
@@ -71,8 +69,6 @@ module Make(F : Field.COMPARABLE) = struct
 
     let public = Public
     let secret = Secret
-
-    type nonrec security = security = Public | Secret
 
     let (+) a b =
       match a, b with
@@ -134,15 +130,13 @@ module Make(F : Field.COMPARABLE) = struct
     let let_ v a b = Let (v, a, b)
 
     let (==) a b = Eq (a, b)
-
-    let cast a = Cast a
   end
 
   type value =
     | Field of F.t
     | Bool of bool
 
-  type env = (Var.t * value) list
+  type env = value Var.Map.t
 
   let field = function
     | Field f -> f
@@ -154,7 +148,7 @@ module Make(F : Field.COMPARABLE) = struct
 
   let rec eval : type a . env -> a t -> value = fun env e ->
     match e with
-    | Input (v, _sec, _ty) -> List.assoc v env
+    | Input (v, _sec, _ty) -> Var.Map.find v env
     | Field f -> Field f
     | Bool b -> Bool b
     | Add (a, b) ->
@@ -196,12 +190,11 @@ module Make(F : Field.COMPARABLE) = struct
          | Field f -> Field f
          | Bool true -> Field F.one
          | Bool false -> Field F.zero)
-    | Cast _ -> assert false
     | Let (v, a, b) ->
         let a = eval env a in
-        eval ((v, a) :: env) b
+        eval (Var.Map.add v a env) b
     | Var v ->
-        List.assoc v env
+        Var.Map.find v env
     | Neg a ->
         let a = bool @@ eval env a in
         Bool (not a)
