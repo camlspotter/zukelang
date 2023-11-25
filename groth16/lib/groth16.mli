@@ -3,9 +3,9 @@ open Utils
 module Make(C : Ecp.CURVE) : sig
 
   module API : sig
-    type circuit
+    type circuit = Circuit.Make(C.Fr).circuit
 
-    type qap
+    type qap = QAP.Make(C.Fr).t
 
     type pkey (** priving key *)
 

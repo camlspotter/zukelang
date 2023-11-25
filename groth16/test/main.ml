@@ -1,44 +1,67 @@
 open Utils
 
-include Groth16.Make(Ecp.Bls12_381)
+module C = Ecp.Bls12_381
+module F = C.Fr
+module Lang = Zukelang.Lang.Make(F)
+module Comp = Zukelang.Comp.Make(F)
+module Circuit = Circuit.Make(F)
+module QAP = QAP.Make(F)
 
-module Lang = Lang.Make(Ecp.Bls12_381.Fr)
-module Circuit = Circuit.Make(Ecp.Bls12_381.Fr)
+module Groth16 = struct
+  module G = Groth16.Make(C)
+  include G.API
+end
 
-open Ecp.Bls12_381
+let test e =
+  let open Format in
 
-let test () =
+  ef "code: %a@." Lang.pp e;
 
-  prerr_endline "PROTOCOL TEST";
+  let comp = Comp.compile e in
+  let circuit = comp.circuit in
 
-  let x = Var.of_string "i" in
-  let e =
-    let open Lang in
-    let open Expr.Infix in
-    let x = Expr.Term (Var x) in
-    x * x * x + x * !2 + !3
+  ef "circuit @[<v>%a@]@." Circuit.pp circuit;
+
+  let qap, _ = QAP.build comp.gates in
+  ef "qap done@.";
+
+  let ekey, vkey = Groth16.keygen circuit qap in
+  ef "keygen done@.";
+
+  let rng = Random.State.make_self_init () in
+
+  let rec eval () =
+    let env =
+      Var.Map.mapi (fun v (_, ty) ->
+          if v = Circuit.one then F.one
+          else Comp.gen_value ty rng) comp.inputs
+    in
+    ef "inputs @[<v>%a@]@." (Var.Map.pp F.pp) env;
+    match Comp.Code.eval_list env comp.codes with
+    | exception Division_by_zero ->
+        ef "Division by zero. Re-evaluating...@.";
+        eval ()
+    | sol -> sol
   in
 
-  (* VC *)
+  let sol = eval () in
+  ef "evaluated@.";
+  ef "sol: @[<v>%a@]@." (Var.Map.pp F.pp) sol;
 
-  let circuit, qap = API.compile ~secret:(Var.Set.singleton x) e in
+  let proof = Groth16.prove qap ekey sol in
+  ef "proven@.";
 
-  let ekey, vkey = API.keygen circuit qap in
+  ef "verifying@.";
+  let public =
+    Var.Map.filter (fun v _ -> not (Var.Set.mem v circuit.mids)) sol
+  in
+  ef "public: @[%a@]@." (Var.Map.pp F.pp) public;
+  assert (Groth16.verify public vkey proof)
 
-  let public = Var.Map.empty in
-  let secret = Var.Map.of_list [x, Fr.of_int 10] in
-
-  let sol = API.solve circuit ~public ~secret in
-
-  let output = API.output_of_solution circuit sol in
-
-  let proof = API.prove qap ekey sol in
-
-  assert (API.verify (Var.Map.concat public output) vkey proof);
-
-  let wrong_output = Var.Map.singleton Circuit.out (Fr.of_int 42) in
-  assert (not @@ API.verify (Var.Map.concat public wrong_output) vkey proof);
-
-  prerr_endline "Groth16 test done!"
-
-let () = test ()
+let () =
+  let open Lang.S in
+  let e =
+    let x = Lang.var () in
+    let_ x (input secret ty_field) (if_ (var x == !0) !1 !2)
+  in
+  test e
