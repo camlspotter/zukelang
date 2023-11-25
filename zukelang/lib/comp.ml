@@ -404,11 +404,11 @@ module Make(F : sig
             | Lang.Secret, _ -> false
             | _ -> true) inputs
       in
-      let inputs = Var.Map.domain inputs_public in
+      let inputs_public = Var.Map.domain inputs_public in
       let mids = Var.Set.union mids
-          Var.Set.(diff (Gate.Set.vars gates) (union (Var.Map.domain inputs_public) outputs))
+          Var.Set.(diff (Gate.Set.vars gates) (union inputs_public outputs))
       in
-      Circuit.{ gates; inputs; outputs; mids }
+      Circuit.{ gates; inputs_public; outputs; mids }
     in
     { gates; inputs; mids; outputs; codes= List.rev rev_codes; result; circuit }
 

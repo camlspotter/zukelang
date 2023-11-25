@@ -224,7 +224,7 @@ module Make(C : Ecp.CURVE) = struct
       let d = Poly.degree z in
       let ekey, vkey =
         let rng = Random.State.make_self_init () in
-        setup rng (Var.Set.union circuit.inputs circuit.outputs) circuit.mids d qap
+        setup rng (Var.Set.union circuit.inputs_public circuit.outputs) circuit.mids d qap
       in
       ekey, vkey
 
