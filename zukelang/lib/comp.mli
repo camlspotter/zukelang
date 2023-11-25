@@ -46,19 +46,21 @@ module Make(F : sig
 
   val gen_value : ty -> F.t Gen.t
 
+  type 'a tree =
+    | Leaf of 'a
+    | Branch of 'a tree * 'a tree
+
   type t =
     { gates : Circuit.Make(F).Gate.Set.t;
       inputs : (ZKLang.Make(F).security * ty) Var.Map.t;
       mids : Var.Set.t;
       outputs : Var.Set.t;
-      codes : (Var.var * Code.code) list
+      codes : (Var.var * Code.code) list;
+      result : Circuit.Make(F).Affine.t tree;
+      circuit : Circuit.Make(F).t
     }
 
-  type 'a tree =
-    | Leaf of 'a
-    | Branch of 'a tree * 'a tree
-
-  val compile : 'a ZKLang.Make(F).t -> Circuit.Make(F).Affine.t tree * t
+  val compile : 'a ZKLang.Make(F).t -> t
 
   val test : 'a ZKLang.Make(F).t -> unit
 end

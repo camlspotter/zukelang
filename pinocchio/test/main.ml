@@ -19,20 +19,12 @@ let test e =
 
   ef "code: %a@." Lang.pp e;
 
-  let _output, Comp.{ gates; inputs; mids; outputs; codes } = Comp.compile e in
-  let circuit =
-    let inputs = Var.Map.bindings inputs in
-    let inputs_public =
-      List.filter_map (function
-          | (_, (Lang.Secret, _)) -> None
-          | (v, _) -> Some v) inputs
-    in
-    let inputs = Var.Set.of_list inputs_public in
-    Circuit.{ gates; inputs; outputs; mids }
-  in
+  let comp = Comp.compile e in
+  let circuit = comp.circuit in
+
   ef "circuit @[<v>%a@]@." Circuit.pp circuit;
 
-  let qap, _ = QAP.build gates in
+  let qap, _ = QAP.build comp.gates in
   ef "qap done@.";
 
   let ekey, vkey = Pinocchio.ZK.keygen circuit qap in
@@ -44,10 +36,10 @@ let test e =
     let env =
       Var.Map.mapi (fun v (_, ty) ->
           if v = Circuit.one then F.one
-          else Comp.gen_value ty rng) inputs
+          else Comp.gen_value ty rng) comp.inputs
     in
     ef "inputs @[<v>%a@]@." (Var.Map.pp F.pp) env;
-    match Comp.Code.eval_list env codes with
+    match Comp.Code.eval_list env comp.codes with
     | exception Division_by_zero ->
         ef "Division by zero. Re-evaluating...@.";
         eval ()

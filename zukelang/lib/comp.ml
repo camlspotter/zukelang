@@ -361,7 +361,9 @@ module Make(F : sig
       inputs : (Lang.security * ty) Var.Map.t;
       mids : Var.Set.t;
       outputs : Var.Set.t;
-      codes : (Var.var * Code.code) list
+      codes : (Var.var * Code.code) list;
+      result : Affine.t tree;
+      circuit : Circuit.t;
     }
 
   let rec mapM_tree (f : 'a -> 'b GateM.t) tree =
@@ -382,7 +384,7 @@ module Make(F : sig
     mapM_tree fix_output a
 
   let compile t =
-    let output, GateM.{ gates; inputs; rev_codes } = compile t GateM.init in
+    let result, GateM.{ gates; inputs; rev_codes } = compile t GateM.init in
     let outputs =
       let rec f acc = function
         | Branch (a, b) -> f (f acc a) b
@@ -391,12 +393,23 @@ module Make(F : sig
             | [v, _] when v <> Circuit.one -> Var.Set.add v acc
             | _ -> assert false
       in
-      f Var.Set.empty output
+      f Var.Set.empty result
     in
     let mids =
       Var.Set.(diff (Gate.Set.vars gates) (union (Var.Map.domain inputs) outputs))
     in
-    output, { gates; inputs; mids; outputs; codes= List.rev rev_codes }
+    let circuit =
+      let inputs = Var.Map.bindings inputs in
+      let inputs_public =
+        List.filter_map (function
+            | (_, (Lang.Secret, _)) -> None
+            | (v, _) -> Some v) inputs
+      in
+      let inputs = Var.Set.of_list inputs_public in
+      Circuit.{ gates; inputs; outputs; mids }
+    in
+    { gates; inputs; mids; outputs; codes= List.rev rev_codes; result; circuit }
+
 
   let rec value_to_tree (v : Lang.value) : F.t tree =
     match v with
@@ -408,7 +421,7 @@ module Make(F : sig
   let test e =
     let open Format in
     ef "code: %a@." Lang.pp e;
-    let output, { gates; inputs; outputs; codes; _ }  = compile e in
+    let { gates; inputs; outputs; codes; result; _ }  = compile e in
 
     ef "public inputs: @[%a@]@."
       (list ",@ " (fun ppf (v, ty) -> f ppf "%a : %a" Var.pp v GateM.pp_ty ty))
@@ -459,7 +472,7 @@ module Make(F : sig
         | Leaf a -> Leaf (Circuit.Affine.eval env a)
         | Branch (a, b) -> Branch (f a, f b)
       in
-      f output
+      f result
     in
     assert (o = o');
 
