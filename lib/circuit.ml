@@ -116,11 +116,13 @@ module Make(F : Field.COMPARABLE) = struct
 
   type t = circuit
 
-  let pp ppf t =
+  let pp ppf { gates; inputs; outputs; mids } =
     let open Format in
-    f ppf "{ @[<v>gates= @[<v>%a@];@ mids= @[%a@]@] }"
-      Gate.Set.pp t.gates
-      (list ", " Var.pp) (Var.Set.elements t.mids)
+    f ppf "{ @[<v>gates= @[<v>%a@];@ inputs= @[%a@];@ outputs= @[%a@];@ mids= @[%a@]@] }"
+      Gate.Set.pp gates
+      Var.Set.pp inputs
+      Var.Set.pp outputs
+      Var.Set.pp mids
 
   let vars gates =
     Gate.Set.fold (fun {lhs; l; r} acc ->
