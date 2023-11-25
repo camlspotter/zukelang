@@ -225,7 +225,7 @@ module Make(C : Ecp.CURVE) = struct
       (* move secret inputs to mids *)
       let circuit =
         { circuit with
-          input = Var.Set.diff circuit.input secret;
+          inputs = Var.Set.diff circuit.inputs secret;
           mids = Var.Set.union circuit.mids secret;
         }
       in
@@ -242,7 +242,7 @@ module Make(C : Ecp.CURVE) = struct
       let d = Poly.degree z in
       let ekey, vkey =
         let rng = Random.State.make_self_init () in
-        setup rng (Var.Set.union circuit.input circuit.output) circuit.mids d qap
+        setup rng (Var.Set.union circuit.inputs circuit.outputs) circuit.mids d qap
       in
       ekey, vkey
 
@@ -253,7 +253,7 @@ module Make(C : Ecp.CURVE) = struct
       Result.get_ok @@ Circuit.eval input circuit.gates
 
     let output_of_solution (circuit : Circuit.t) sol =
-      Var.Map.filter (fun v _ -> Var.Set.mem v circuit.output) sol
+      Var.Map.filter (fun v _ -> Var.Set.mem v circuit.outputs) sol
 
     let prove qap pkey sol =
       let rng = Random.State.make_self_init () in

@@ -109,8 +109,8 @@ module Make(F : Field.COMPARABLE) = struct
 
   type circuit =
     { gates : Gate.Set.t;
-      input : Var.Set.t;
-      output: Var.Set.t;
+      inputs : Var.Set.t;
+      outputs : Var.Set.t;
       mids : Var.Set.t
     }
 
@@ -233,7 +233,7 @@ module Make(F : Field.COMPARABLE) = struct
   end
 
   let build (e : Expr'.expr') =
-    let input = Var.Set.add one @@ Expr'.vars e in
+    let inputs = Var.Set.add one @@ Expr'.vars e in
     let mids = ref Var.Set.empty in
     let mk_var =
       let cntr = ref 0 in
@@ -268,7 +268,7 @@ module Make(F : Field.COMPARABLE) = struct
       { lhs= Var.Map.singleton out F.one; l= Var.Map.of_list vns; r= Var.Map.singleton one F.one }
     in
     let gates = List.fold_left Gate.Set.union (Gate.Set.singleton g) gss in
-    { gates; input; output = Var.Set.singleton out; mids= !mids }
+    { gates; inputs; outputs = Var.Set.singleton out; mids= !mids }
 
   let of_expr (e : Expr.t) =
     let e' = Expr'.expr' e in

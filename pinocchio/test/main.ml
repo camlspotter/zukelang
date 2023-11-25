@@ -27,9 +27,8 @@ let test e =
           | (_, (Lang.Secret, _)) -> None
           | (v, _) -> Some v) inputs
     in
-    let output = outputs in
-    let input = Var.Set.of_list inputs_public in
-    Circuit.{ gates; input; output; mids }
+    let inputs = Var.Set.of_list inputs_public in
+    Circuit.{ gates; inputs; outputs; mids }
   in
   ef "circuit @[<v>%a@]@." Circuit.pp circuit;
 

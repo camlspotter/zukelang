@@ -64,8 +64,8 @@ module Make(F : Field.COMPARABLE) : sig
 
   type circuit =
     { gates : Gate.Set.t; (** Gates with the output variables *)
-      input : Var.Set.t;
-      output : Var.Set.t;
+      inputs : Var.Set.t;
+      outputs : Var.Set.t;
       mids : Var.Set.t; (** Intermediate variables *)
     }
 
