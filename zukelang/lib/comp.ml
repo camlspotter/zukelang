@@ -399,13 +399,15 @@ module Make(F : sig
       Var.Set.(diff (Gate.Set.vars gates) (union (Var.Map.domain inputs) outputs))
     in
     let circuit =
-      let inputs = Var.Map.bindings inputs in
-      let inputs_public =
-        List.filter_map (function
-            | (_, (Lang.Secret, _)) -> None
-            | (v, _) -> Some v) inputs
+      let inputs_public, _inputs_secret =
+        Var.Map.partition (fun _ -> function
+            | Lang.Secret, _ -> false
+            | _ -> true) inputs
       in
-      let inputs = Var.Set.of_list inputs_public in
+      let inputs = Var.Map.domain inputs_public in
+      let mids = Var.Set.union mids
+          Var.Set.(diff (Gate.Set.vars gates) (union (Var.Map.domain inputs_public) outputs))
+      in
       Circuit.{ gates; inputs; outputs; mids }
     in
     { gates; inputs; mids; outputs; codes= List.rev rev_codes; result; circuit }
