@@ -19,7 +19,7 @@ let test e =
 
   ef "code: %a@." Lang.pp e;
 
-  let Comp.{ gates; inputs; mids; outputs; codes } = Comp.compile e in
+  let _output, Comp.{ gates; inputs; mids; outputs; codes } = Comp.compile e in
   let circuit =
     let inputs = Var.Map.bindings inputs in
     let inputs_public =

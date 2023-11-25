@@ -31,6 +31,8 @@ module Make(F : Field.COMPARABLE) : sig
     val is_const : t -> F.t option
     val vars : t -> Var.Set.t
 
+    val eval : F.t Var.Map.t -> affine -> F.t
+
     module Infix : sig
       val (!) : int -> t
       val (+) : t -> t -> t

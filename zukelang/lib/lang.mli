@@ -26,6 +26,9 @@ module Make(F : Field.COMPARABLE) : sig
     | Let : Var.t * 'a t * 'b t -> 'b t
     | Var : Var.t -> 'a t
     | Neg : F.t t -> F.t t
+    | Pair : 'a t * 'b t -> ('a * 'b) t
+    | Fst : ('a * _) t -> 'a t
+    | Snd : (_ * 'a) t -> 'a t
 
   val pp : _ t printer
 
@@ -63,11 +66,18 @@ module Make(F : Field.COMPARABLE) : sig
     val let_ : Var.t -> _ t -> 'b t -> 'b t
 
     val (==) : 'a t -> 'a t -> bool t
+
+    val pair : 'a t -> 'b t -> ('a * 'b) t
+
+    val fst : ('a * _) t -> 'a t
+
+    val snd : (_ * 'a) t -> 'a t
   end
 
   type value =
     | Field of F.t
     | Bool of bool
+    | Pair of value * value
 
   type env = value Var.Map.t
 

@@ -59,6 +59,10 @@ module Make(F : Field.COMPARABLE) = struct
       else None
     let vars = Var.Map.domain
 
+    let eval env a =
+      Var.Map.fold (fun v ck acc ->
+          F.(Var.Map.find v env * ck + acc)) a F.zero
+
     module Infix = struct
       let (!) = of_int
       let (+) = add

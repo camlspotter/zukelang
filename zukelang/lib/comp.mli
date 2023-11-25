@@ -54,7 +54,11 @@ module Make(F : sig
       codes : (Var.var * Code.code) list
     }
 
-  val compile : 'a ZKLang.Make(F).t -> t
+  type 'a tree =
+    | Leaf of 'a
+    | Branch of 'a tree * 'a tree
+
+  val compile : 'a ZKLang.Make(F).t -> Circuit.Make(F).Affine.t tree * t
 
   val test : 'a ZKLang.Make(F).t -> unit
 end

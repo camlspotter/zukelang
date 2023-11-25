@@ -63,7 +63,8 @@ module Make(F : sig
       Var.Map.map (function
           | Lang.Field f -> f
           | Bool true -> F.one
-          | Bool false -> F.zero)
+          | Bool false -> F.zero
+          | Pair _ -> assert false)
 
     let rec eval env =
       let to_bool f =
@@ -135,13 +136,13 @@ module Make(F : sig
     type state =
       { gates : Gate.Set.t;
         inputs : (Lang.security * ty) Var.Map.t;
-        codes : (Var.t * Code.t) list; (* reversed order *)
+        rev_codes : (Var.t * Code.t) list; (* reversed order *)
       }
 
     let init =
       { gates= Gate.Set.empty;
         inputs= Var.Map.singleton Circuit.one (Lang.Public, Field);
-        codes= []
+        rev_codes= []
       }
 
     include StateM
@@ -160,11 +161,23 @@ module Make(F : sig
 
     let add_code : Var.t -> Code.t -> unit t = fun v e ->
       fun s ->
-        if List.mem_assoc v s.codes then assert false;
-        (), { s with codes= (v, e) :: s.codes }
+        if List.mem_assoc v s.rev_codes then assert false;
+        (), { s with rev_codes= (v, e) :: s.rev_codes }
   end
 
-  let rec compile : type a . (Var.t * Affine.t) list -> a Lang.t -> Affine.t GateM.t =
+  type 'a tree =
+    | Leaf of 'a
+    | Branch of 'a tree * 'a tree
+
+  let rec compile1 : type a . (Var.t * Affine.t tree) list -> a Lang.t -> Affine.t GateM.t =
+    fun env t ->
+    let open GateM in
+    let+ res = compile env t in
+    match res with
+    | Leaf af -> af
+    | _ -> assert false
+
+  and compile : type a . (Var.t * Affine.t tree) list -> a Lang.t -> Affine.t tree GateM.t =
     let open Lang in
     let open Affine in
     let open Affine.Infix in
@@ -173,42 +186,43 @@ module Make(F : sig
       let v = var () in
       v, of_var v
     in
+    let return1 x = return @@ Leaf x in
     fun env ->
       function
-      | Field f -> return @@ Affine.of_F f
-      | Bool true -> return !1
-      | Bool false -> return !0
+      | Field f -> return1 @@ Affine.of_F f
+      | Bool true -> return1 !1
+      | Bool false -> return1 !0
       | Input (v, security, ty) ->
           let* () = add_input v security ty in
-          return @@ of_var v
+          return1 @@ of_var v
       | Add (t1, t2) ->
-          let* t1 = compile env t1 in
-          let* t2 = compile env t2 in
-          return @@ t1 + t2
+          let* t1 = compile1 env t1 in
+          let* t2 = compile1 env t2 in
+          return1 @@ t1 + t2
       | Sub (t1, t2) ->
           compile env (Add (t1, Neg t2))
       | Neg t ->
-          let* t = compile env t in
-          return @@ t *$ F.of_int (-1)
+          let* t = compile1 env t in
+          return1 @@ t *$ F.of_int (-1)
       | Mul (t1, t2) ->
-          let* t1 = compile env t1 in
-          let* t2 = compile env t2 in
+          let* t1 = compile1 env t1 in
+          let* t2 = compile1 env t2 in
           (match is_const t1, is_const t2 with
-           | Some f1, Some f2 -> return @@ of_F F.(f1 * f2)
-           | Some f1, _ -> return @@ t2 *$ f1
-           | _, Some f2 -> return @@ t1 *$ f2
+           | Some f1, Some f2 -> return1 @@ of_F F.(f1 * f2)
+           | Some f1, _ -> return1 @@ t2 *$ f1
+           | _, Some f2 -> return1 @@ t1 *$ f2
            | _ ->
                let va, a = var () in
                let* () = add_code va Code.S.(!&t1 * !&t2) in
                let* () = add_gate a t1 t2 in
-               return a)
+               return1 a)
       | Div (a, b) ->
-          let* a = compile env a in
-          let* b = compile env b in
+          let* a = compile1 env a in
+          let* b = compile1 env b in
           (match is_const a, is_const b with
-           | Some a, Some b -> return @@ of_F F.(a * b)
-           | Some a, _ -> return @@ b *$ a
-           | _, Some b -> return @@ a *$ b
+           | Some a, Some b -> return1 @@ of_F F.(a * b)
+           | Some a, _ -> return1 @@ b *$ a
+           | _, Some b -> return1 @@ a *$ b
            | _ ->
                (* d
                   where
@@ -220,7 +234,7 @@ module Make(F : sig
                let* () = add_code vd Code.S.(!&a * !& c) in
                let* () = add_gate !1 b c in
                let* () = add_gate d a c in
-               return d)
+               return1 d)
       | Not (Bool b) -> compile env @@ Bool (not b)
       | Not a ->
           (* b
@@ -228,12 +242,12 @@ module Make(F : sig
                0 = a * b
                1 = a + b
           *)
-          let* a = compile env a in
+          let* a = compile1 env a in
           let vb, b = var () in
           let* () = add_code vb Code.S.(not !&a) in
           let* () = add_gate !0 a b in
           let* () = add_gate !1 (a + b) !1 in
-          return b
+          return1 b
       | And (a, b) -> compile env (Mul (To_field a, To_field b))
       | Or (a, b) ->
           (* c
@@ -241,8 +255,8 @@ module Make(F : sig
                c = (a+b) * d
                0 = (a+b) * (1-c)
           *)
-          let* a = compile env a in
-          let* b = compile env b in
+          let* a = compile1 env a in
+          let* b = compile1 env b in
           let vc, c = var () in
           let vd, d = var () in
           let a_plus_b = a + b in (* a + b creates no gate *)
@@ -250,7 +264,7 @@ module Make(F : sig
           let* () = add_code vd Code.S.(if_ !&c (!& !1 / !& a_plus_b) !& !0) in
           let* () = add_gate c a_plus_b d in
           let* () = add_gate !0 a_plus_b (!1 - c) in
-          return c
+          return1 c
       | If (a, b, c) ->
           (* a * b + (1 - a) * c
                = a * b + c - a * c
@@ -260,22 +274,22 @@ module Make(F : sig
              where
                d = a * (b - c)
           *)
-          let* a = compile env a in
-          let* b = compile env b in
-          let* c = compile env c in
+          let* a = compile1 env a in
+          let* b = compile1 env b in
+          let* c = compile1 env c in
           (match is_const a with
            | Some a ->
-               return @@ if F.(a = of_int 1) then b else c
+               return1 @@ if F.(a = of_int 1) then b else c
            | None ->
                let vd, d = var () in
                let b_c = b - c in
                match is_const b_c with
                | Some b_c ->
-                   return @@ c + a *$ b_c
+                   return1 @@ c + a *$ b_c
                | None ->
                    let* () = add_code vd Code.S.(!&a * !&b_c) in
                    let* () = add_gate d a b_c in
-                   return @@ c + d)
+                   return1 @@ c + d)
       | Eq (a, b) ->
           (* $a == b$
 
@@ -287,11 +301,14 @@ module Make(F : sig
           let* b = compile env b in
           let vc, c = var () in
           let vd, d = var () in
+          (* no pair equality yet *)
+          let a = match a with Leaf a -> a | _ -> assert false in
+          let b = match b with Leaf a -> a | _ -> assert false in
           let* () = add_code vc Code.S.(!&a == !&b) in
           let* () = add_code vd Code.S.(if_ !&c !& !0 (!& !1 / !&(a - b))) in
           let* () = add_gate (!1 - c) (a - b) d in
           let* () = add_gate !0 (a - b) c in
-          return c
+          return1 c
       | To_field t -> compile env t
 
       | Let (v, a, b) ->
@@ -299,6 +316,45 @@ module Make(F : sig
           let env = (v, a) :: env in
           compile env b
       | Var v -> return @@ List.assoc v env
+      | Pair (a, b) ->
+          let* a = compile env a in
+          let* b = compile env b in
+          return @@ (Branch (a, b) : Affine.t tree)
+      | Fst a ->
+          let* a = compile env a in
+          (match a with
+           | Branch (a, _) -> return a
+           | _ -> assert false)
+      | Snd a ->
+          let* a = compile env a in
+          (match a with
+           | Branch (_, a) -> return a
+           | _ -> assert false)
+
+  (* If an output affine is more complex than a variable, add a gate
+     to add a variable to alias the affine. *)
+  let fix_output : Affine.t -> Affine.t GateM.t = fun a ->
+    let open GateM in
+    match Var.Map.bindings a (* XXX Affine.bindings or to_list *) with
+    | [] -> (* zero *)
+        return a
+    | [v, _] when v = Circuit.one -> (* constant *)
+        return a
+    | [_v, f] when F.(f = one) ->
+        return a
+    | [_] -> (* Weighted variable *)
+        (* Weird.  Add another gate for a workaround *)
+        let vo = Lang.var () in
+        let o = Affine.of_var vo in
+        let* () = add_code vo Code.S.(!&a) in
+        let* () = add_gate o a (Affine.Infix.(!) 1) in
+        return o
+    | _ -> (* Affine *)
+        let vo = Lang.var () in
+        let o = Affine.of_var vo in
+        let* () = add_code vo Code.S.(!&a) in
+        let* () = add_gate o a (Affine.Infix.(!) 1) in
+        return o
 
   type t =
     { gates : Gate.Set.t;
@@ -308,47 +364,51 @@ module Make(F : sig
       codes : (Var.var * Code.code) list
     }
 
+  let rec mapM_tree (f : 'a -> 'b GateM.t) tree =
+    let open GateM in
+    match tree with
+    | Leaf a ->
+        let* bt = f a in
+        return @@ Leaf bt
+    | Branch (a, b) ->
+        let* a = mapM_tree f a in
+        let+ b = mapM_tree f b in
+        Branch (a, b)
+
+  (* Final mending of gates *)
   let compile t =
-    let a, state = compile [] t GateM.init in
-    let gates, inputs, outputs, rev_codes =
-      match Var.Map.bindings a (* XXX Affine.bindings or to_list *) with
-      | [] ->
-          state.gates, state.inputs, Var.Set.empty, state.codes
-      | [v, _] when v = Circuit.one ->
-          state.gates, state.inputs, Var.Set.empty, state.codes
-      | [v, f] when F.(f = one) ->
-          state.gates, state.inputs, Var.Set.singleton v, state.codes
-      | [_] ->
-          (* Weird.  Add another gate for a workaround *)
-          let vo = Lang.var () in
-          let o = Affine.of_var vo in
-          let (), state =
-            GateM.(
-              let* () = add_code vo Code.S.(!&a) in
-              add_gate o a (Affine.Infix.(!) 1)
-            ) state
-          in
-          state.gates, state.inputs, Var.Set.singleton vo, state.codes
-      | _ ->
-          let vo = Lang.var () in
-          let o = Affine.of_var vo in
-          let (), state =
-            GateM.(
-              let* () = add_code vo Code.S.(!&a) in
-              add_gate o a (Affine.Infix.(!) 1)
-            ) state
-          in
-          state.gates, state.inputs, Var.Set.singleton vo, state.codes
+    let open GateM in
+    let* a = compile [] t in
+    mapM_tree fix_output a
+
+  let compile t =
+    let output, GateM.{ gates; inputs; rev_codes } = compile t GateM.init in
+    let outputs =
+      let rec f acc = function
+        | Branch (a, b) -> f (f acc a) b
+        | Leaf a ->
+            match Var.Map.bindings a with
+            | [v, _] when v <> Circuit.one -> Var.Set.add v acc
+            | _ -> assert false
+      in
+      f Var.Set.empty output
     in
     let mids =
       Var.Set.(diff (Gate.Set.vars gates) (union (Var.Map.domain inputs) outputs))
     in
-    { gates; inputs; mids; outputs; codes= List.rev rev_codes }
+    output, { gates; inputs; mids; outputs; codes= List.rev rev_codes }
+
+  let rec value_to_tree (v : Lang.value) : F.t tree =
+    match v with
+    | Field f -> Leaf f
+    | Bool true -> Leaf F.one
+    | Bool false -> Leaf F.zero
+    | Pair (a, b) -> Branch (value_to_tree a, value_to_tree b)
 
   let test e =
     let open Format in
     ef "code: %a@." Lang.pp e;
-    let { gates; inputs; outputs; codes; _ }  = compile e in
+    let output, { gates; inputs; outputs; codes; _ }  = compile e in
 
     ef "public inputs: @[%a@]@."
       (list ",@ " (fun ppf (v, ty) -> f ppf "%a : %a" Var.pp v GateM.pp_ty ty))
@@ -381,7 +441,7 @@ module Make(F : sig
             | Bool -> Lang.Bool (Gen.int 2 rng = 0)) inputs
     in
 
-    let o = Lang.eval inputs e in
+    let o = value_to_tree @@ Lang.eval inputs e in
 
     prerr_endline "Code.eval";
     let env =
@@ -390,19 +450,33 @@ module Make(F : sig
              match value with
              | Lang.Field f -> f
              | Bool true -> F.one
-             | Bool false -> F.zero) inputs) codes
+             | Bool false -> F.zero
+             | Pair _ -> assert false
+           ) inputs) codes
     in
-    Var.Set.iter (fun o' ->
-        Format.ef "output %a...@." Var.pp o';
-        let f = Var.Map.find o' env in
-        Format.ef "output %a = %a@." Var.pp o' F.pp f;
-        assert ((Lang.Field f = o))) outputs
+    let o' =
+      let rec f = function
+        | Leaf a -> Leaf (Circuit.Affine.eval env a)
+        | Branch (a, b) -> Branch (f a, f b)
+      in
+      f output
+    in
+    assert (o = o');
+
+    prerr_endline "test done"
 end
 
 let test () =
   let module Comp = Make(Ecp.Bls12_381.Fr) in
   let module Lang = Comp.Lang in
-  let e = Lang.S.(let x = Lang.var () in
-                  let_ x (input secret ty_field) (if_ (var x == !0) !1 !2))
-  in
-  Comp.test e
+  let open Lang.S in
+
+  Comp.test begin
+    let x = Lang.var () in
+    let_ x (input secret ty_field) (if_ (var x == !0) !1 !2)
+  end;
+
+  Comp.test begin
+    let x = Lang.var () in
+    let_ x (input secret ty_field) (pair (var x + !1) (var x * !2))
+  end

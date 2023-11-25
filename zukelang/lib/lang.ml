@@ -32,6 +32,9 @@ module Make(F : Field.COMPARABLE) = struct
     | Let : Var.t * 'a t * 'b t -> 'b t
     | Var : Var.t -> 'a t
     | Neg : F.t t -> F.t t
+    | Pair : 'a t * 'b t -> ('a * 'b) t
+    | Fst : ('a * 'b) t -> 'a t
+    | Snd : ('a * 'b) t -> 'b t
 
   let rec ptree : type a. a t -> Ppxlib_ast.Ast.expression =
     let loc = Location.none in
@@ -57,6 +60,9 @@ module Make(F : Field.COMPARABLE) = struct
     | To_field t -> [%expr to_field [%e ptree t]]
     | Let (v, t1, t2) -> [%expr let [%p Pat.var {txt= Var.to_string v; loc= Location.none}] = [%e ptree t1] in [%e ptree t2]]
     | Neg t -> [%expr ~- [%e ptree t]]
+    | Pair (a, b) -> [%expr ([%e ptree a], [%e ptree b])]
+    | Fst a -> [%expr fst [%e ptree a]]
+    | Snd a -> [%expr snd [%e ptree a]]
 
   let pp ppf t = Ppxlib_ast.Pprintast.expression ppf @@ ptree t
 
@@ -130,11 +136,18 @@ module Make(F : Field.COMPARABLE) = struct
     let let_ v a b = Let (v, a, b)
 
     let (==) a b = Eq (a, b)
+
+    let pair a b = Pair (a, b)
+
+    let fst a = Fst a
+
+    let snd a = Snd a
   end
 
   type value =
     | Field of F.t
     | Bool of bool
+    | Pair of value * value
 
   type env = value Var.Map.t
 
@@ -189,7 +202,8 @@ module Make(F : Field.COMPARABLE) = struct
         (match eval env a with
          | Field f -> Field f
          | Bool true -> Field F.one
-         | Bool false -> Field F.zero)
+         | Bool false -> Field F.zero
+         | Pair _ -> assert false)
     | Let (v, a, b) ->
         let a = eval env a in
         eval (Var.Map.add v a env) b
@@ -198,4 +212,17 @@ module Make(F : Field.COMPARABLE) = struct
     | Neg a ->
         let a = bool @@ eval env a in
         Bool (not a)
+    | Pair (a, b) ->
+        let a = eval env a in
+        let b = eval env b in
+        Pair (a, b)
+    | Fst a ->
+        (match eval env a with
+         | Pair (a, _) -> a
+         | _ -> assert false)
+    | Snd a ->
+        (match eval env a with
+         | Pair (_, b) -> b
+         | _ -> assert false)
+
 end
