@@ -1,7 +1,6 @@
 open Utils
 
 module Make(C : Ecp.CURVE) : sig
-  type expr = Lang.Make(C.Fr).Expr.t
   type circuit = Circuit.Make(C.Fr).t
   type qap = QAP.Make(C.Fr).t
 
@@ -12,9 +11,6 @@ module Make(C : Ecp.CURVE) : sig
   type proof
 
   module NonZK : sig
-    val compile : expr -> circuit * qap
-    (** Compile an expression to a circuit and a QAP *)
-
     val keygen : circuit -> qap -> ekey * vkey
     (** Key generation *)
 
@@ -32,9 +28,6 @@ module Make(C : Ecp.CURVE) : sig
   end
 
   module ZK : sig
-    val compile : expr -> secret:Var.Set.t -> circuit * qap
-    (** Compile an expression to a circuit and a QAP *)
-
     val keygen : circuit -> qap -> ekey * vkey
     (** Key generation *)
 
@@ -51,5 +44,3 @@ module Make(C : Ecp.CURVE) : sig
     (** Verify the computation proof *)
   end
 end
-
-val test : unit -> unit

@@ -1,7 +1,5 @@
 open Misc
 
-open Lang
-
 let one = Var.of_string "$ONE"
 
 let out = Var.of_string "$OUT"
@@ -9,9 +7,6 @@ let out = Var.of_string "$OUT"
 module Make(F : Field.COMPARABLE) = struct
   let one = one
   let out = out
-
-  module Lang = Lang.Make(F)
-  open Lang
 
   module Affine = struct
     type affine = F.t Var.Map.t
@@ -173,124 +168,7 @@ module Make(F : Field.COMPARABLE) = struct
     in
     loop env unks [] gates
 
-  module Expr' = struct
-    type expr' = expr'' list
-
-    and expr'' =
-      | Term of Var.t option * F.t
-      | Mul of expr' * expr'
-
-    let rec pp_expr' ppf e's =
-      let open Format in
-      f ppf "@[%a@]"
-        (pp_print_list ~pp_sep:(fun ppf () -> f ppf "@ + ") pp_expr'') e's
-
-    and pp_expr'' ppf =
-      let open Format in
-      function
-      | Term (None, n) -> F.pp ppf n
-      | Term (Some v, n) -> f ppf "%a%a" F.pp n Var.pp v
-      | Mul (e1, e2) -> f ppf "@[(%a) * (%a)@]" pp_expr' e1 pp_expr' e2
-
-    let vars e' =
-      let open Var.Set in
-      let rec f'' = function
-        | Term (Some v, _) -> singleton v
-        | Term (None, _) -> empty
-        | Mul (e'1, e'2) -> union (f' e'1) (f' e'2)
-      and f' e''s =
-        List.fold_left (fun acc e'' -> union acc (f'' e'')) empty e''s
-      in
-      f' e'
-
-    let rec expr' (e : Expr.t) : expr' =
-      match e with
-      | Term (Num n) -> [Term (None, n)]
-      | Term (Var v) -> [Term (Some v, F.one)]
-      | BinApp (Mul, e1, e2) ->
-          let e1 = expr' e1 in
-          let e2 = expr' e2 in
-          [Mul (e1, e2)]
-      | BinApp (Add, e1, e2) ->
-          let es = expr' e1 @ expr' e2 in
-          let terms, muls =
-            List.partition_map (function
-                | Term (vo,n) -> Left (vo,n)
-                | Mul _ as e -> Right e) es
-          in
-          let terms =
-            let module Map = Map.Make(struct
-                type t = Var.t option
-                let compare = compare
-              end)
-            in
-            Map.bindings @@
-            List.fold_left (fun acc (vo,n) ->
-                Map.update vo (function
-                    | None -> Some n
-                    | Some n' -> Some F.(n+n')) acc)
-              Map.empty terms
-          in
-          List.map (fun (vo,n) -> Term (vo,n)) terms @ muls
-  end
-
-  let build (e : Expr'.expr') =
-    let inputs = Var.Set.add one @@ Expr'.vars e in
-    let mids = ref Var.Set.empty in
-    let mk_var =
-      let cntr = ref 0 in
-      fun () ->
-        incr cntr;
-        let v = Var.of_string (Printf.sprintf "_tmp%d" !cntr) in
-        mids := Var.Set.add v !mids;
-        v
-    in
-    let rec aux (e : Expr'.expr'') =
-      match e with
-      | Term (None, n) -> (one, n), Gate.Set.empty
-      | Term (Some v, n) -> (v, n), Gate.Set.empty
-      | Mul (e1, e2) ->
-          let sum1, gs1 =
-            List.fold_left (fun (sum, gs) e ->
-                let (v,w), gs' = aux e in
-                (Var.Map.add v w sum, Gate.Set.union gs gs')) (Var.Map.empty, Gate.Set.empty) e1
-          in
-          let sum2, gs2 =
-            List.fold_left (fun (sum, gs) e ->
-                let (v,w), gs' = aux e in
-                (Var.Map.add v w sum, Gate.Set.union gs gs')) (Var.Map.empty, Gate.Set.empty) e2
-          in
-          let v = mk_var () in
-          ( (v, F.one),
-            Gate.Set.add { lhs= Var.Map.singleton v F.one ; l= sum1; r= sum2 }
-            @@ Gate.Set.union gs1 gs2 )
-    in
-    let vns, gss = List.split @@ List.map aux e in
-    let g : Gate.t =
-      { lhs= Var.Map.singleton out F.one; l= Var.Map.of_list vns; r= Var.Map.singleton one F.one }
-    in
-    let gates = List.fold_left Gate.Set.union (Gate.Set.singleton g) gss in
-    { gates; inputs; outputs = Var.Set.singleton out; mids= !mids }
-
-  let of_expr (e : Expr.t) =
-    let e' = Expr'.expr' e in
-    build e'
-
   let ios t =
     let vars = vars t.gates in
     Var.Set.diff vars t.mids
-
-  let test () =
-    let x = Expr.var "x" in
-    let e =
-      let open Expr.Infix in
-      x * x * x + x + !3
-    in
-    let open Format in
-    ef "----------------@.";
-    ef "Expr: %a@." Expr.pp e;
-    let e' = Expr'.expr'  e in
-    ef "Expr': %a@." Expr'.pp_expr' e';
-    let t = build e' in
-    ef "Gates: @[<v>%a@]@." pp t
 end

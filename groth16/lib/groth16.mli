@@ -13,9 +13,6 @@ module Make(C : Ecp.CURVE) : sig
 
     type proof
 
-    val compile : secret: Var.Set.t -> Lang.Make(C.Fr).Expr.t -> circuit * qap
-    (** Compile an expression to a circuit and a QAP *)
-
     val keygen : circuit -> qap -> pkey * vkey
     (** Key generation *)
 

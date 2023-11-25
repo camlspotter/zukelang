@@ -5,7 +5,6 @@ open Var.Infix
 module Make(F : Field.COMPARABLE) = struct
 
   module Polynomial = Polynomial.Make(F)
-  module Lang = Lang.Make(F)
   module Circuit = Circuit.Make(F)
   module IntMap = Map.Make(Int)
 
@@ -134,33 +133,4 @@ module Make(F : Field.COMPARABLE) = struct
     let h, rem = Polynomial.Infix.(p /% target) in
     assert (Polynomial.is_zero rem);
     p, h
-
-  let test () =
-    let x = Var.of_string "i" in
-    let e =
-      let open Lang in
-      let open Expr.Infix in
-      let x = Expr.Term (Var x) in
-      x * x + x * !2 + !3
-    in
-    let open Format in
-    ef "----------------@.";
-    ef "Expr: %a@." Lang.Expr.pp e;
-
-    let circuit = Circuit.of_expr e in
-    ef "Gates: @[<v>%a@]@." Circuit.pp circuit;
-
-    let ({ target= t; _ } as qap), _rk = build circuit.gates in
-    let sol =
-      Result.get_ok
-      @@ Circuit.eval (Var.Map.of_list [x, F.of_int 3;
-                                        Circuit.one, F.of_int 1]) circuit.gates
-    in
-    Var.Map.iter (fun v i -> ef "%a = %a@." Var.pp v F.pp i) sol;
-    let p, _h = eval sol qap in
-    ef "p = %a@." Polynomial.pp p;
-    let h, rem = Polynomial.Infix.(p /% t) in
-    ef "t = %a@." Polynomial.pp t;
-    ef "h = %a@." Polynomial.pp h;
-    ef "rem = %a@." Polynomial.pp rem
 end

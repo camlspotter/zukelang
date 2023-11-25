@@ -12,6 +12,4 @@ module Make(F : Field.COMPARABLE) : sig
 
   val eval : F.t Var.Map.t -> t -> Polynomial.Make(F).t * Polynomial.Make(F).t
   (** compute $p$ and $h$ *)
-
-  val test : unit -> unit
 end

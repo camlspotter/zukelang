@@ -205,7 +205,6 @@ module Make(C : Ecp.CURVE) = struct
        (Σwk*Ak(τ))(Σwk*Bk(τ)) = Σwk*C(τ) + H(τ)*Z(τ)
   *)
 
-  module Lang = Lang.Make(Fr)
   module Circuit = Circuit.Make(C.Fr)
 
   module API = struct
@@ -219,23 +218,6 @@ module Make(C : Ecp.CURVE) = struct
     type nonrec vkey = vkey
 
     type nonrec proof = proof
-
-    let compile ~secret e =
-      let circuit = Circuit.of_expr e in
-      (* move secret inputs to mids *)
-      let circuit =
-        { circuit with
-          inputs = Var.Set.diff circuit.inputs secret;
-          mids = Var.Set.union circuit.mids secret;
-        }
-      in
-      let qap, rg = QAP.build circuit.gates in
-
-      (* decompilation test *)
-      let gates = QAP.decompile qap rg in
-      assert (Circuit.Gate.Set.equal circuit.gates gates);
-
-      circuit, qap
 
     let keygen (circuit : Circuit.t) (qap : QAP.t) =
       let z (* Z(x) *) = qap.target in
