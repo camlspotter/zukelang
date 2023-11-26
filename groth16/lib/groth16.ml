@@ -219,17 +219,15 @@ module Make(C : Ecp.CURVE) = struct
 
     type nonrec proof = proof
 
-    let keygen (circuit : Circuit.t) (qap : QAP.t) =
+    let keygen rng (circuit : Circuit.t) (qap : QAP.t) =
       let z (* Z(x) *) = qap.target in
       let d = Poly.degree z in
       let ekey, vkey =
-        let rng = Random.State.make_self_init () in
         setup rng (Var.Set.union circuit.inputs_public circuit.outputs) circuit.mids d qap
       in
       ekey, vkey
 
-    let prove qap pkey sol =
-      let rng = Random.State.make_self_init () in
+    let prove rng qap pkey sol =
       let _p, h = QAP.eval sol qap in
       prove rng pkey qap sol h
 

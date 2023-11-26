@@ -27,11 +27,13 @@ module Make(C : Ecp.CURVE) = struct
 
   module KeyGen = struct
 
+    (* Evaluation key in the paper.  We call it "proving key" *)
     (* The paper uses symmetric groups: e : $G_1 = G_2$.  Here we use BLS12-381
        with assymmetric groups $G_1 \neq G_2$.  Therefore some fields require values
        in $G_2$ too.
+
     *)
-    type ekey =
+    type pkey =
       { vv    : G1.t Var.Map.t; (* $\{ g_v^{v_k(s)} \}_{k\in I_{mid}}$ *)
         ww    : G2.t Var.Map.t; (* $\{ g_w^{w_k(s)} \}_{k\in I_{mid}}$ *)
         yy    : G1.t Var.Map.t; (* $\{ g_y^{y_k(s)} \}_{k\in I_{mid}}$ *)
@@ -105,7 +107,7 @@ module Make(C : Ecp.CURVE) = struct
         G.(gu * uks)
       in
 
-      let ekey =
+      let pkey =
         (* $\{ g_v^{v_k(s)} \}_{k\in I_{mid}}$ *)
         let vv = map_apply_s g1 gv v imid in
         (* $\{ g_w^{w_k(s)} \}_{k\in I_{mid}}$ *)
@@ -183,7 +185,7 @@ module Make(C : Ecp.CURVE) = struct
           yy_io; }
       in
 
-      ekey, vkey
+      pkey, vkey
 
   end
 
@@ -204,34 +206,34 @@ module Make(C : Ecp.CURVE) = struct
         bvwy : G1.t; (* $g_v^{\beta v_{mid}(s)} g_w^{\beta w_{mid}(s)} g_y^{\beta y_{mid}(s)}$ *)
       } [@@deriving yojson]
 
-    let f (ekey : KeyGen.ekey) (sol : Fr.t Var.Map.t) (h_poly : Poly.t) =
+    let f (pkey : KeyGen.pkey) (sol : Fr.t Var.Map.t) (h_poly : Poly.t) =
       let c = sol in
-      let mid = Var.Map.domain ekey.vv in
+      let mid = Var.Map.domain pkey.vv in
       let c_mid = Var.Map.filter (fun v _ -> Var.Set.mem v mid) c in
 
       (* $v_{mid}(s) = \Sigma_{k\in I_{mid}} c_k \cdot v_k(s)$ *)
-      let vv (* $g_v^{v_{mid}(s)}$ *) = G1.dot ekey.vv c_mid in
+      let vv (* $g_v^{v_{mid}(s)}$ *) = G1.dot pkey.vv c_mid in
 
       (* $w(s) = \Sigma_{k\in [m]} c_k \cdot w_k(s)$ *)
-      let ww (* $g_w^{w_{mid}(s)}$ *) = G2.dot ekey.ww c_mid in
+      let ww (* $g_w^{w_{mid}(s)}$ *) = G2.dot pkey.ww c_mid in
 
       (* $y(s) = \Sigma_{k\in [m]} c_k \cdot y_k(s)$ *)
-      let yy (* $g_y^{y_{mid}(s)}$ *) = G1.dot ekey.yy c_mid in
+      let yy (* $g_y^{y_{mid}(s)}$ *) = G1.dot pkey.yy c_mid in
 
       (* $h(s) = h_0 + h_1  s + h_2  s^2 + .. + h_d  s^d$ *)
-      let h (* $g^{h(s)}$ *) = G1.apply_powers h_poly ekey.si in
+      let h (* $g^{h(s)}$ *) = G1.apply_powers h_poly pkey.si in
 
       (* $\alpha_v v_{mid}(s) = \Sigma_{k\in I_{mid}} c_k \cdot \alpha_v v_k(s)$ *)
-      let vavv (* $g_v^{\alpha v_{mid}(s)}$ *) = G1.dot ekey.vav c_mid in
+      let vavv (* $g_v^{\alpha v_{mid}(s)}$ *) = G1.dot pkey.vav c_mid in
 
       (* $\alpha_w w_{mid}(s) = \Sigma_{k\in I_{mid}} c_k \cdot \alpha_w w_k(s)$ *)
-      let waww (* $g_w^{\alpha_w w_{mid}(s)}$ *) = G2.dot ekey.waw c_mid in
+      let waww (* $g_w^{\alpha_w w_{mid}(s)}$ *) = G2.dot pkey.waw c_mid in
 
       (* $\alpha_y y_{mid}(s) = \Sigma_{k\in I_{mid}} c_k \cdot \alpha_y y_k(s)$ *)
-      let yayy (* $g_y^{\alpha_y y_{mid}(s)}$ *) = G1.dot ekey.yay c_mid in
+      let yayy (* $g_y^{\alpha_y y_{mid}(s)}$ *) = G1.dot pkey.yay c_mid in
 
       let bvwy (* $g_v^{\beta v_{mid}(s)} g_w^{\beta w_{mid}(s)} g_y^{\beta y_{mid}(s)}$ *) =
-        G1.dot ekey.bvwy c_mid
+        G1.dot pkey.bvwy c_mid
       in
 
       { vv;
@@ -421,30 +423,30 @@ module Make(C : Ecp.CURVE) = struct
 
     open Compute
 
-    let f rng (target : Poly.t) (ekey : KeyGen.ekey) (sol : Fr.t Var.Map.t) (h_poly : Poly.t) =
+    let f rng (target : Poly.t) (pkey : KeyGen.pkey) (sol : Fr.t Var.Map.t) (h_poly : Poly.t) =
       let dv (* $\delta_v$ *) = Fr.gen rng in
       let dw (* $\delta_w$ *) = Fr.gen rng in
       let dy (* $\delta_y$ *) = Fr.gen rng in
-      let t (* $g_1^{t(s)}$, not $g_y^{t(s)}$! *) = G1.apply_powers target ekey.si in
+      let t (* $g_1^{t(s)}$, not $g_y^{t(s)}$! *) = G1.apply_powers target pkey.si in
 
       let c = sol in
-      let mid = Var.Map.domain ekey.vv in
+      let mid = Var.Map.domain pkey.vv in
       let c_mid = Var.Map.filter (fun v _ -> Var.Set.mem v mid) c in
 
       (* $v_{mid}(s) = \Sigma_{k\in I_{mid}} c_k \cdot v_k(s)$ *)
-      let vv (* $g_v^{v_{mid}(s)}$ *) = G1.dot ekey.vv c_mid in
-      let vv' (* $g_v^{v_{mid}(s) + \delta_v t(s)}$ *) = G1.(vv + ekey.vt * dv) in
+      let vv (* $g_v^{v_{mid}(s)}$ *) = G1.dot pkey.vv c_mid in
+      let vv' (* $g_v^{v_{mid}(s) + \delta_v t(s)}$ *) = G1.(vv + pkey.vt * dv) in
 
       (* $w_{mid}(s) = \Sigma_{k\in I_{mid}} c_k \cdot w_k(s)$ *)
-      let ww (* $g_w^{w_{mid}(s)}$ *) = G2.dot ekey.ww c_mid in
-      let ww' (* $g_w^{w_{mid}(s) + \delta_w t(s)}$ *) = G2.(ww + ekey.wt * dw) in
+      let ww (* $g_w^{w_{mid}(s)}$ *) = G2.dot pkey.ww c_mid in
+      let ww' (* $g_w^{w_{mid}(s) + \delta_w t(s)}$ *) = G2.(ww + pkey.wt * dw) in
 
       (* $y_{mid}(s) = \Sigma_{k\in I_{mid}} c_k \cdot y_k(s)$ *)
-      let yy (* $g_y^{y_{mid}(s)}$ *) = G1.dot ekey.yy c_mid in
-      let yy' (* $g_y^{y_{mid}(s) + \delta_y  t(s)}$ *) = G1.(yy + ekey.yt * dy) in
+      let yy (* $g_y^{y_{mid}(s)}$ *) = G1.dot pkey.yy c_mid in
+      let yy' (* $g_y^{y_{mid}(s) + \delta_y  t(s)}$ *) = G1.(yy + pkey.yt * dy) in
 
       (* $h(s) = h_0 + h_1  s + h_2  s^2 + .. + h_d  s^d$ *)
-      let h (* $g^{h(s)}$ *) = G1.apply_powers h_poly ekey.si in
+      let h (* $g^{h(s)}$ *) = G1.apply_powers h_poly pkey.si in
       (* $p'(x) := v'(x) \cdot w'(x) - y'(x)$
              $= (\Sigma c_k v_k(x) + \delta_v t(x))\cdot (\Sigma c_k w_k(x) + \delta_w t(x))
                      - (\Sigma c_k y_k(x) + \delta_y t(x))$
@@ -477,28 +479,28 @@ module Make(C : Ecp.CURVE) = struct
       *)
       let h' (* $h'(s) = h(s) + v(s) \cdot \delta_w + w(s) \cdot \delta_v + \delta_v \delta_w t(s) - \delta_y$ *) =
         let open G1 in
-        let v_all (* $g_1^{v(s)}$ Not $g_v^{v(s)}$!! *) = G1.dot ekey.v_all c in
-        let w_all (* $g_1^{w(s)}$ Not $g_w^{w(s)}$!! *) = G1.dot ekey.w_all c in
+        let v_all (* $g_1^{v(s)}$ Not $g_v^{v(s)}$!! *) = G1.dot pkey.v_all c in
+        let w_all (* $g_1^{w(s)}$ Not $g_w^{w(s)}$!! *) = G1.dot pkey.w_all c in
         h  +  v_all * dw  +  w_all * dv  +  t * dv * dw  -  one * dy
       in
 
       (* $\alpha_v v_{mid}(s) = \Sigma_{k\in I_{mid}} c_k \cdot \alpha_v v_k(s)$ *)
-      let vavv (* $g_v^{\alpha_v v_{mid}(s)}$ *) = G1.dot ekey.vav c_mid in
-      let vavv' (* $g_v^{\alpha_v (v_{mid}(s) + \delta_v t(s))}$ *) = G1.(vavv + ekey.vavt * dv) in
+      let vavv (* $g_v^{\alpha_v v_{mid}(s)}$ *) = G1.dot pkey.vav c_mid in
+      let vavv' (* $g_v^{\alpha_v (v_{mid}(s) + \delta_v t(s))}$ *) = G1.(vavv + pkey.vavt * dv) in
 
       (* $\alpha_w w_{mid}(s) = \Sigma_{k\in I_{mid}} c_k \cdot \alpha_w w_k(s)$ *)
-      let waww (* $g_w^{\alpha_w w_{mid}(s)}$ *) = G2.dot ekey.waw c_mid in
-      let waww' (* $g_w^{\alpha_w (w_{mid}(s) + \delta_w t(s))}$ *) = G2.(waww + ekey.wawt * dw) in
+      let waww (* $g_w^{\alpha_w w_{mid}(s)}$ *) = G2.dot pkey.waw c_mid in
+      let waww' (* $g_w^{\alpha_w (w_{mid}(s) + \delta_w t(s))}$ *) = G2.(waww + pkey.wawt * dw) in
 
       (* $\alpha_y y_{mid}(s) = \Sigma_{k\in I_{mid}} c_k \cdot \alpha_y y_k(s)$ *)
-      let yayy (* $g_y^{\alpha_y y_{mid}(s)}$ *) = G1.dot ekey.yay c_mid in
-      let yayy' (* $g_y^{\alpha_y (y_{mid}(s) + \delta_y t(s))}$ *) = G1.(yayy + ekey.yayt * dy) in
+      let yayy (* $g_y^{\alpha_y y_{mid}(s)}$ *) = G1.dot pkey.yay c_mid in
+      let yayy' (* $g_y^{\alpha_y (y_{mid}(s) + \delta_y t(s))}$ *) = G1.(yayy + pkey.yayt * dy) in
 
       let bvwy (* $g_v^{\beta v_{mid}(s)} g_w^{\beta w_{mid}(s)} g_y^{\beta y_{mid}(s)}$ *) =
-        G1.dot ekey.bvwy c_mid
+        G1.dot pkey.bvwy c_mid
       in
       let bvwy' (* $g_v^{\beta (v_{mid}(s) + \delta_v t(s))} g_w^{\beta (w_{mid}(s) + \delta_w t(s))} g_y^{\beta (y_{mid}(s) + \delta_y t(s))}$ *) =
-        G1.(bvwy + ekey.vbt * dv + ekey.wbt * dw + ekey.ybt * dy)
+        G1.(bvwy + pkey.vbt * dv + pkey.wbt * dw + pkey.ybt * dy)
       in
       { vv = vv';
         ww = ww';
@@ -513,23 +515,22 @@ module Make(C : Ecp.CURVE) = struct
 
   module API = struct
 
-    type ekey = KeyGen.ekey [@@deriving yojson]
+    type pkey = KeyGen.pkey [@@deriving yojson]
 
     type vkey = KeyGen.vkey [@@deriving yojson]
 
     type proof = Compute.proof [@@deriving yojson]
 
     module NonZK = struct
-      let keygen circuit qap =
-        let ekey, vkey =
-          let rng = Random.State.make_self_init () in
+      let keygen rng circuit qap =
+        let pkey, vkey =
           KeyGen.generate rng circuit qap
         in
-        ekey, vkey
+        pkey, vkey
 
-      let prove qap ekey sol =
+      let prove _rng qap pkey sol =
         let _p, h = QAP.eval sol qap in
-        Compute.f ekey sol h
+        Compute.f pkey sol h
 
       let verify input_output vkey proof =
         let input_output = Var.Map.add Circuit.one (Fr.of_int 1) input_output in
@@ -540,10 +541,9 @@ module Make(C : Ecp.CURVE) = struct
     module ZK = struct
       let keygen = NonZK.keygen
 
-      let prove qap ekey sol =
-        let rng = Random.State.make_self_init () in
+      let prove rng qap pkey sol =
         let _p, h = QAP.eval sol qap in
-        ZKCompute.f rng qap.target ekey sol h
+        ZKCompute.f rng qap.target pkey sol h
 
       let verify = NonZK.verify
     end

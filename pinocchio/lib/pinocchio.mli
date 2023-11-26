@@ -4,17 +4,17 @@ module Make(C : Ecp.CURVE) : sig
   type circuit = Circuit.Make(C.Fr).t
   type qap = QAP.Make(C.Fr).t
 
-  type ekey [@@deriving yojson] (** Evaluation key *)
+  type pkey [@@deriving yojson] (** Evaluation key *)
 
   type vkey [@@deriving yojson] (** Verificaiton key *)
 
   type proof [@@deriving yojson]
 
   module NonZK : sig
-    val keygen : circuit -> qap -> ekey * vkey
+    val keygen : Random.State.t -> circuit -> qap -> pkey * vkey
     (** Key generation *)
 
-    val prove : qap -> ekey -> C.Fr.t Var.Map.t -> proof
+    val prove : Random.State.t -> qap -> pkey -> C.Fr.t Var.Map.t -> proof
     (** Obtain a proof of the computation *)
 
     val verify : C.Fr.t Var.Map.t -> vkey -> proof -> bool
@@ -22,10 +22,10 @@ module Make(C : Ecp.CURVE) : sig
   end
 
   module ZK : sig
-    val keygen : circuit -> qap -> ekey * vkey
+    val keygen : Random.State.t -> circuit -> qap -> pkey * vkey
     (** Key generation *)
 
-    val prove : qap -> ekey -> C.Fr.t Var.Map.t -> proof
+    val prove : Random.State.t -> qap -> pkey -> C.Fr.t Var.Map.t -> proof
     (** Obtain a proof of the computation *)
 
     val verify : C.Fr.t Var.Map.t -> vkey -> proof -> bool

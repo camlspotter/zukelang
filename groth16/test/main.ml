@@ -25,7 +25,8 @@ let test e =
   let qap, _ = QAP.build comp.gates in
   ef "qap done@.";
 
-  let ekey, vkey = Groth16.keygen circuit qap in
+  let rng = Random.State.make_self_init () in
+  let ekey, vkey = Groth16.keygen rng circuit qap in
   ef "keygen done@.";
 
   let rng = Random.State.make_self_init () in
@@ -48,7 +49,8 @@ let test e =
   ef "evaluated@.";
   ef "sol: @[<v>%a@]@." (Var.Map.pp F.pp) sol;
 
-  let proof = Groth16.prove qap ekey sol in
+  let rng = Random.State.make_self_init () in
+  let proof = Groth16.prove rng qap ekey sol in
   ef "proven@.";
 
   ef "verifying@.";

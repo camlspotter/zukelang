@@ -21,7 +21,8 @@ let test e =
   let qap, _ = QAP.build comp.gates in
   ef "qap done@.";
 
-  let ekey, vkey = Pinocchio.ZK.keygen circuit qap in
+  let rng = Random.State.make_self_init () in
+  let ekey, vkey = Pinocchio.ZK.keygen rng circuit qap in
   ef "keygen done@.";
 
   let rng = Random.State.make_self_init () in
@@ -44,7 +45,8 @@ let test e =
   ef "evaluated@.";
   ef "sol: @[<v>%a@]@." (Var.Map.pp F.pp) sol;
 
-  let proof = Pinocchio.ZK.prove qap ekey sol in
+  let rng = Random.State.make_self_init () in
+  let proof = Pinocchio.ZK.prove rng qap ekey sol in
   ef "proven@.";
 
   ef "verifying@.";
