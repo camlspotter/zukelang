@@ -4,11 +4,11 @@ module Make(C : Ecp.CURVE) : sig
   type circuit = Circuit.Make(C.Fr).t
   type qap = QAP.Make(C.Fr).t
 
-  type ekey (** Evaluation key *)
+  type ekey [@@deriving yojson] (** Evaluation key *)
 
-  type vkey (** Verificaiton key *)
+  type vkey [@@deriving yojson] (** Verificaiton key *)
 
-  type proof
+  type proof [@@deriving yojson]
 
   module NonZK : sig
     val keygen : circuit -> qap -> ekey * vkey

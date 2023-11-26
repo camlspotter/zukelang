@@ -7,11 +7,11 @@ module Make(C : Ecp.CURVE) : sig
 
     type qap = QAP.Make(C.Fr).t
 
-    type pkey (** priving key *)
+    type pkey [@@deriving yojson] (** priving key *)
 
-    type vkey (** verification key *)
+    type vkey [@@deriving yojson] (** verification key *)
 
-    type proof
+    type proof [@@deriving yojson]
 
     val keygen : circuit -> qap -> pkey * vkey
     (** Key generation *)

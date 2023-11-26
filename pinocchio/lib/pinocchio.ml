@@ -202,7 +202,7 @@ module Make(C : Ecp.CURVE) = struct
         yayy : G1.t; (* $g_y^{\alpha_y y_{mid}(s)}$ *)
 
         bvwy : G1.t; (* $g_v^{\beta v_{mid}(s)} g_w^{\beta w_{mid}(s)} g_y^{\beta y_{mid}(s)}$ *)
-      }
+      } [@@deriving yojson]
 
     let f (ekey : KeyGen.ekey) (sol : Fr.t Var.Map.t) (h_poly : Poly.t) =
       let c = sol in
@@ -513,11 +513,11 @@ module Make(C : Ecp.CURVE) = struct
 
   module API = struct
 
-    type ekey = KeyGen.ekey
+    type ekey = KeyGen.ekey [@@deriving yojson]
 
-    type vkey = KeyGen.vkey
+    type vkey = KeyGen.vkey [@@deriving yojson]
 
-    type proof = Compute.proof
+    type proof = Compute.proof [@@deriving yojson]
 
     module NonZK = struct
       let keygen circuit qap =
