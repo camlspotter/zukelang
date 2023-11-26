@@ -16,9 +16,6 @@ module Make(C : Ecp.CURVE) : sig
     val keygen : circuit -> qap -> pkey * vkey
     (** Key generation *)
 
-    val output_of_solution : circuit -> C.Fr.t Var.Map.t -> C.Fr.t Var.Map.t
-    (** The output of the solution *)
-
     val prove : qap -> pkey -> C.Fr.t Var.Map.t -> proof
     (** Obtain a proof of the computation *)
 

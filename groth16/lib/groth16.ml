@@ -228,9 +228,6 @@ module Make(C : Ecp.CURVE) = struct
       in
       ekey, vkey
 
-    let output_of_solution (circuit : Circuit.t) sol =
-      Var.Map.filter (fun v _ -> Var.Set.mem v circuit.outputs) sol
-
     let prove qap pkey sol =
       let rng = Random.State.make_self_init () in
       let _p, h = QAP.eval sol qap in
