@@ -126,48 +126,6 @@ module Make(F : Field.COMPARABLE) = struct
         let r = Var.Map.domain r in
         Var.Set.(union (union lhs (union l r)) acc)) gates Var.Set.empty
 
-  (* OBSOLETE *)
-  let eval_gate_binding env (vns1, vns2) =
-    let open Option.Monad in
-    let open F in
-    let* a1 =
-      Option.mapM (fun (v,n) ->
-          let+ a = Var.Map.find_opt v env in
-          a * n) @@ Var.Map.bindings vns1
-    in
-    let+ a2 =
-      Option.mapM (fun (v,n) ->
-          let+ a = Var.Map.find_opt v env in
-          a * n) @@ Var.Map.bindings vns2
-    in
-    List.fold_left (+) zero a1
-    * List.fold_left (+) zero a2
-
-  (* OBSOLETE *)
-  let eval env gates =
-    let vars = vars gates in
-    let unks = Var.Set.diff vars (Var.Map.domain env) in
-    let gates = Gate.Set.elements gates in
-    let rec loop sol unks rev_gs gs =
-      if Var.Set.is_empty unks then Ok sol
-      else
-        match gs with
-        | [] -> Error sol
-        | (Gate.{lhs; l= vns1; r= vns2} as g) :: gs ->
-            (* lhs must be a singleton of (v, 1) *)
-            match Var.Map.bindings lhs with
-            | [(v, f)] when F.(f = one) ->
-                (match eval_gate_binding sol (vns1, vns2) with
-                 | Some i ->
-                     loop
-                       (Var.Map.add v i sol)
-                       (Var.Set.remove v unks)
-                       [] (List.rev_append rev_gs gs)
-                 | None -> loop sol unks (g::rev_gs) gs)
-            | _ -> invalid_arg "Circuit.eval"
-    in
-    loop env unks [] gates
-
   let ios t =
     let vars = vars t.gates in
     Var.Set.diff vars t.mids

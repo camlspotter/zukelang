@@ -76,6 +76,4 @@ module Make(F : Field.COMPARABLE) : sig
   val vars : Gate.Set.t -> Var.Set.t
 
   val ios : t -> Var.Set.t
-
-  val eval : F.t Var.Map.t -> Gate.Set.t -> (F.t Var.Map.t, F.t Var.Map.t) result
 end

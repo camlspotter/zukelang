@@ -228,12 +228,6 @@ module Make(C : Ecp.CURVE) = struct
       in
       ekey, vkey
 
-    let solve (circuit : Circuit.t) ~public ~secret =
-      if Var.Set.(not @@ is_empty @@ diff (Var.Map.domain secret) circuit.mids) then
-        invalid_arg "secret input is not part of the mids of the circuit";
-      let input = Var.Map.(add Circuit.one (Fr.of_int 1) (concat public secret)) in
-      Result.get_ok @@ Circuit.eval input circuit.gates
-
     let output_of_solution (circuit : Circuit.t) sol =
       Var.Map.filter (fun v _ -> Var.Set.mem v circuit.outputs) sol
 

@@ -527,10 +527,6 @@ module Make(C : Ecp.CURVE) = struct
         in
         ekey, vkey
 
-      let solve (circuit : Circuit.t) input =
-        let input = Var.Map.add Circuit.one (Fr.of_int 1) input in
-        Result.get_ok @@ Circuit.eval input circuit.gates
-
       let output_of_solution (circuit : Circuit.t) sol =
         Var.Map.filter (fun v _ -> Var.Set.mem v circuit.outputs) sol
 
@@ -546,10 +542,6 @@ module Make(C : Ecp.CURVE) = struct
 
     module ZK = struct
       let keygen = NonZK.keygen
-
-      let solve (circuit : Circuit.t) ~public ~secret =
-        let input = Var.Map.concat public secret in
-        NonZK.solve circuit input
 
       let output_of_solution = NonZK.output_of_solution
 

@@ -16,9 +16,6 @@ module Make(C : Ecp.CURVE) : sig
     val keygen : circuit -> qap -> pkey * vkey
     (** Key generation *)
 
-    val solve : circuit -> public: C.Fr.t Var.Map.t -> secret: C.Fr.t Var.Map.t -> C.Fr.t Var.Map.t
-    (** Evaluate the circuit with the given input *)
-
     val output_of_solution : circuit -> C.Fr.t Var.Map.t -> C.Fr.t Var.Map.t
     (** The output of the solution *)
 
