@@ -27,6 +27,8 @@ module type S = sig
   val ( / ) : t -> t -> t
 
   val ( ~- ) : t -> t
+
+  include JSON.Conv.S with type t := t
 end
 
 module type COMPARABLE = sig
@@ -47,4 +49,6 @@ module Int = struct
   let of_int = Fun.id
   let zero = 0
   let one = 1
+
+  type nonrec int = int [@@deriving yojson]
 end

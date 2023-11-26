@@ -1,6 +1,6 @@
 open Misc
 
-type t = float * float
+type t = float * float [@@deriving yojson]
 
 val zero : t
 val is_zero : t -> bool

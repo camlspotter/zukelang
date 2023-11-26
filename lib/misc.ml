@@ -72,14 +72,6 @@ module Option = struct
   end
 end
 
-module Q = struct
-  include Q
-
-  let pp = pp_print
-
-  let is_zero x = Q.(x = zero)
-end
-
 module Gen = struct
   type 'a t = Random.State.t -> 'a
 
@@ -114,9 +106,66 @@ let log2 =
   let l2 = log 2.0 in
   fun f -> log f /. l2
 
+module Result = struct
+  include Result
+  module Syntax = struct
+    let (let*) x f =
+      match x with
+      | Error e -> Error e
+      | Ok a -> f a
+
+    let (let+) x f = map f x
+
+    let return x = Ok x
+  end
+end
+
+module Converter = struct
+  module type S = sig
+    type src
+    type dst
+    val encode : src -> dst
+    val decode : dst -> src Error.result
+  end
+end
+
+module JSON = struct
+  type json = Yojson.Safe.t
+  type t = json
+
+  type 'a encoder = 'a -> t
+  type 'a decoder = t -> ('a, string) result
+
+  module Conv = struct
+    open Ppx_yojson_conv_lib
+    include Yojson_conv
+
+    module type S = Yojsonable.S
+    module type S1 = Yojsonable.S1
+    module type S2 = Yojsonable.S2
+    module type S3 = Yojsonable.S3
+  end
+end
+
 module Z = struct
   include Z
   let pp = pp_print
+
+  open Ppx_yojson_conv_lib.Yojson_conv
+
+  let yojson_of_t z = yojson_of_string @@ Z.to_string z
+
+  let t_of_yojson j = Z.of_string @@ string_of_yojson j
+end
+
+module Q = struct
+  include Q
+
+  type nonrec t = Q.t = { num : Z.t; den : Z.t } [@@deriving yojson]
+
+  let pp = pp_print
+
+  let is_zero x = Q.(x = zero)
 end
 
 let failwithf fmt = Format.kasprintf failwith fmt

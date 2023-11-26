@@ -61,3 +61,5 @@ let () =
     let_ x (input secret ty_field) (if_ (var x == !0) !1 !2)
   in
   test e
+
+let () = Test.A.test ()

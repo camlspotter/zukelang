@@ -1,5 +1,6 @@
 (library
   (name utils)
-  (libraries zarith bls12-381 unix)
+  (libraries zarith bls12-381 unix ppx_yojson_conv_lib hex)
+  (preprocess (pps ppx_yojson_conv))
   (flags :standard -warn-error -9-32-34-37)
   )

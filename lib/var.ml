@@ -1,8 +1,8 @@
 open Misc
 
-type var = string
+type var = string [@@deriving yojson]
 
-type t = var
+type t = var [@@deriving yojson]
 
 let compare = String.compare
 
@@ -12,6 +12,10 @@ let of_string x = x
 
 let to_string x = x
 
+module Var_list = struct
+  type t = var list [@@deriving yojson]
+end
+
 module Set = struct
   include Set.Make (struct
     type nonrec t = t
@@ -20,6 +24,14 @@ module Set = struct
   end)
 
   let pp ppf t = Format.(f ppf "@[%a@]" (list ",@ " pp) (elements t))
+
+  let yojson_of_t s = Var_list.yojson_of_t @@ elements s
+
+  let t_of_yojson j = of_list @@ Var_list.t_of_yojson j
+end
+
+module Binding = struct
+  type 'a t = (var * 'a) list [@@deriving yojson]
 end
 
 module Map = struct
@@ -45,6 +57,10 @@ module Map = struct
   let concat a b = union (fun _ _ _ -> invalid_arg "concat") a b
 
   let restrict s = filter (fun v _ -> Set.mem v s)
+
+  let yojson_of_t a m = Binding.yojson_of_t a @@ bindings m
+
+  let t_of_yojson a j = of_list @@ Binding.t_of_yojson a j
 end
 
 module Infix = struct

@@ -1,6 +1,6 @@
 open Misc
 
-type t = float * float
+type t = float * float [@@deriving yojson]
 
 let zero = 0.0, 0.0
 let ( + ) (r1, i1) (r2, i2) = (r1 +. r2, i1 +. i2)

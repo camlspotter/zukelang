@@ -54,7 +54,7 @@ module Make(C : Ecp.CURVE) = struct
         ybt   : G1.t;  (* $g_y^{\beta t(s)}$ *)
         v_all : G1.t Var.Map.t; (* $\{ g_1^{v_k(s)} \}_{k\in [m]}$ Not $g_v^{v_k(s)}$!! *)
         w_all : G1.t Var.Map.t; (* $\{ g_1^{w_k(s)} \}_{k\in [m]$ Not $g_w^{v_k(s)}$!! *)
-     }
+     } [@@deriving yojson]
 
     type vkey =
       { one    : G1.t; (* $g^1$ *)
@@ -69,7 +69,7 @@ module Make(C : Ecp.CURVE) = struct
         vv_io : G1.t Var.Map.t; (* $\{ g_v^{v_k(s)} \}_{k\in [N]}$ *)
         ww_io : G2.t Var.Map.t; (* $\{ g_w^{w_k(s)} \}_{k\in [N]}$ *)
         yy_io : G1.t Var.Map.t; (* $\{ g_y^{y_k(s)} \}_{k\in [N]}$ *)
-      }
+      } [@@deriving yojson]
 
     let generate rng (circuit : Circuit.t) QAP.{v; w; y; target= t} =
       let imid (* $I_{mid}$ *) = circuit.mids in

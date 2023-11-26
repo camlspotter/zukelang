@@ -44,6 +44,8 @@ module type G = sig
 
   val apply_powers : fr Polynomial.t -> t list -> t
   (** $\Sigma_i c_i x^i$ *)
+
+  include JSON.Conv.S with type t := t
 end
 
 module type CURVE = sig
@@ -127,6 +129,9 @@ module Bls12_381 = struct
       let sum = List.fold_left (+) zero
       let gen rng = random ~state:rng ()
       let of_Fr = Fun.id
+
+      let yojson_of_t f = Z.yojson_of_t @@ Fr.to_z f
+      let t_of_yojson j = Fr.of_z @@ Z.t_of_yojson j
     end
     include Fr
     module Poly = struct
@@ -146,6 +151,7 @@ module Bls12_381 = struct
   module ExtendG( G : sig
       type t
       val to_bytes : t -> bytes
+      val of_bytes_opt : bytes -> t option
       val add : t -> t -> t
       val mul : t -> Fr.t -> t
       val negate : t -> t
@@ -174,19 +180,33 @@ module Bls12_381 = struct
       end)
   end
 
+  type _bytes = bytes [@@deriving yojson]
+
   module G1 = struct
     include G1
     include ExtendG(G1)
+
+    let yojson_of_t g = JSON.Conv.yojson_of_bytes @@ to_compressed_bytes g
+
+    let t_of_yojson j = of_compressed_bytes_exn @@ JSON.Conv.bytes_of_yojson j
   end
 
   module G2 = struct
     include G2
     include ExtendG(G2)
+
+    let yojson_of_t g = JSON.Conv.yojson_of_bytes @@ to_compressed_bytes g
+
+    let t_of_yojson j = of_compressed_bytes_exn @@ JSON.Conv.bytes_of_yojson j
   end
 
   module GT = struct
     include GT
     include ExtendG(GT)
+
+    let yojson_of_t g = JSON.Conv.yojson_of_bytes @@ to_bytes g
+
+    let t_of_yojson j = of_bytes_exn @@ JSON.Conv.bytes_of_yojson j
   end
 end
 

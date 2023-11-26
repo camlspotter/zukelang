@@ -1,8 +1,8 @@
 open Misc
 
-type var = private string
+type var = private string [@@deriving yojson]
 
-type t = var
+type t = var [@@deriving yojson]
 
 val compare : t -> t -> int
 
@@ -15,6 +15,8 @@ val to_string : var -> string
 module Set : sig
   include Set.S with type elt = t
   val pp : t printer
+
+  include JSON.Conv.S with type t := t
 end
 
 module Map : sig
@@ -28,6 +30,8 @@ module Map : sig
   (** Fails at a collision *)
 
   val restrict : Set.t -> 'a t -> 'a t
+
+  include JSON.Conv.S1 with type 'a t := 'a t
 end
 
 module Infix : sig
