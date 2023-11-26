@@ -1,4 +1,4 @@
-open Utils
+open Misc
 
 module Make(F : Field.COMPARABLE) : sig
 

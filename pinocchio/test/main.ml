@@ -2,8 +2,8 @@ open Utils
 
 module C = Ecp.Bls12_381
 module F = C.Fr
-module Lang = Zukelang.Lang.Make(F)
-module Comp = Zukelang.Comp.Make(F)
+module Lang = Lang.Make(F)
+module Comp = Comp.Make(F)
 module Circuit = Circuit.Make(F)
 module QAP = QAP.Make(F)
 module Pinocchio = Pinocchio.Make(C)

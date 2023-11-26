@@ -1,5 +1,5 @@
 (executable
   (name main)
-  (libraries zarith bls12-381 utils zukelang groth16)
+  (libraries utils groth16)
   (flags :standard -warn-error -9-32-34-37)
   )

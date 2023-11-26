@@ -1,7 +1,0 @@
-(library
-  (name zukelang)
-  (libraries utils ocaml-compiler-libs.common)
-  (flags :standard -warn-error -9-32-34-37)
-  (preprocess
-    (pps ppxlib.metaquot))
-  )

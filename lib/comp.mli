@@ -1,6 +1,4 @@
-module ZKLang = Lang
-
-open Utils
+open Misc
 
 module Make(F : sig
     include Field.COMPARABLE
@@ -35,7 +33,7 @@ module Make(F : sig
 
     type env = F.t Var.Map.t
 
-    val convert_env : ZKLang.Make(F).env -> env
+    val convert_env : Lang.Make(F).env -> env
 
     val eval : env -> t -> F.t
 
@@ -52,7 +50,7 @@ module Make(F : sig
 
   type t =
     { gates : Circuit.Make(F).Gate.Set.t;
-      inputs : (ZKLang.Make(F).security * ty) Var.Map.t;
+      inputs : (Lang.Make(F).security * ty) Var.Map.t;
       mids : Var.Set.t;
       outputs : Var.Set.t;
       codes : (Var.var * Code.code) list;
@@ -60,9 +58,9 @@ module Make(F : sig
       circuit : Circuit.Make(F).t
     }
 
-  val compile : 'a ZKLang.Make(F).t -> t
+  val compile : 'a Lang.Make(F).t -> t
 
-  val test : 'a ZKLang.Make(F).t -> unit
+  val test : 'a Lang.Make(F).t -> unit
 end
 
 val test : unit -> unit

@@ -1,13 +1,11 @@
 (* to avoid silly name crash *)
-module ZKLang = Lang
-
-open Utils
+open Misc
 
 module Make(F : sig
     include Field.COMPARABLE
     val gen : t Gen.t
   end ) = struct
-  module Lang = ZKLang.Make(F)
+  module Lang = Lang.Make(F)
 
   module Circuit = Circuit.Make(F)
 

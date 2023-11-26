@@ -10,3 +10,5 @@ module C = C
 module FFT = FFT
 module StateM = StateM
 module Protocol = Protocol
+module Lang = Lang
+module Comp = Comp
