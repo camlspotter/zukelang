@@ -447,7 +447,7 @@ module Make(F : sig
 
     prerr_endline "Lang.eval";
     let inputs =
-      let rng = Random.State.make_self_init () in
+      let rng = Gen.init_auto () in
       Var.Map.mapi (fun v (_, ty) ->
           if v = Circuit.one then Lang.Field F.one
           else

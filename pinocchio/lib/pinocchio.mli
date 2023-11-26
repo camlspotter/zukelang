@@ -11,10 +11,10 @@ module Make(C : Ecp.CURVE) : sig
   type proof [@@deriving yojson]
 
   module NonZK : sig
-    val keygen : Random.State.t -> circuit -> qap -> pkey * vkey
+    val keygen : Gen.rng -> circuit -> qap -> pkey * vkey
     (** Key generation *)
 
-    val prove : Random.State.t -> qap -> pkey -> C.Fr.t Var.Map.t -> proof
+    val prove : Gen.rng -> qap -> pkey -> C.Fr.t Var.Map.t -> proof
     (** Obtain a proof of the computation *)
 
     val verify : C.Fr.t Var.Map.t -> vkey -> proof -> bool
@@ -22,10 +22,10 @@ module Make(C : Ecp.CURVE) : sig
   end
 
   module ZK : sig
-    val keygen : Random.State.t -> circuit -> qap -> pkey * vkey
+    val keygen : Gen.rng -> circuit -> qap -> pkey * vkey
     (** Key generation *)
 
-    val prove : Random.State.t -> qap -> pkey -> C.Fr.t Var.Map.t -> proof
+    val prove : Gen.rng -> qap -> pkey -> C.Fr.t Var.Map.t -> proof
     (** Obtain a proof of the computation *)
 
     val verify : C.Fr.t Var.Map.t -> vkey -> proof -> bool

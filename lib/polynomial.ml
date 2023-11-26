@@ -169,12 +169,11 @@ module Make (A : Field.S) : S with type f = A.t = struct
     (List.rev ds, normalize @@ List.rev rem)
 
   let gen sz rng =
-    let open Random.State in
     let l = sz rng in
     normalize
     @@ List.init l (fun _ ->
-           let x = int rng 201 - 100 in
-           let y = int rng 201 - 100 in
+           let x = Gen.int 201 rng - 100 in
+           let y = Gen.int 201 rng - 100 in
            let y = if y = 0 then 1 else y in
            A.(of_int x / of_int y))
 
@@ -203,7 +202,7 @@ module Make (A : Field.S) : S with type f = A.t = struct
           ef "r: %a@." pp r ;
           assert false))
     in
-    let rng = Random.State.make_self_init () in
+    let rng = Gen.init_auto () in
     for _ = 0 to 1000 do
       test rng
     done ;

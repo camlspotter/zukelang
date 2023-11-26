@@ -138,7 +138,7 @@ let test_c () =
   test_fft [!1; !9];
   test_fft [!3; !2; !4];
   test_fft [!9; !8; !7; !6; !5; !4; !3];
-  let rng = Random.State.make_self_init () in
+  let rng = Gen.init_auto () in
   for _ = 0 to 1000 do
     let p = Polynomial.gen (Gen.int 20) rng in
     test_fft p
@@ -242,7 +242,7 @@ let test_fr () =
   test_fft [!1; !9];
   test_fft [!3; !2; !4];
   test_fft [!9; !8; !7; !6; !5; !4; !3];
-  let rng = Random.State.make_self_init () in
+  let rng = Gen.init_auto () in
   for _ = 0 to 1000 do
     let p = Polynomial.gen (Gen.int 20) rng in
     test_fft p

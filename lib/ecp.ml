@@ -213,8 +213,8 @@ end
 (* (g^i)^j = g^i * j *)
 let () =
   let open Bls12_381 in
-  let rng = Random.State.make_self_init () in
-  let gen rng = Random.State.int rng 10000 in
+  let rng = Gen.init_auto () in
+  let gen = Gen.int 10000 in
   let fr = Fr.of_int in
   let a = gen rng in
   let g_of_int x = G1.of_Fr @@ fr x in
