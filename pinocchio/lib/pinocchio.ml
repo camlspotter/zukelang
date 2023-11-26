@@ -513,7 +513,12 @@ module Make(C : Ecp.CURVE) = struct
       }
   end
 
-  module API = struct
+  module NonZK = struct
+    type f = C.Fr.t
+
+    type nonrec circuit = circuit
+
+    type nonrec qap = qap
 
     type pkey = KeyGen.pkey [@@deriving yojson]
 
@@ -521,33 +526,40 @@ module Make(C : Ecp.CURVE) = struct
 
     type proof = Compute.proof [@@deriving yojson]
 
-    module NonZK = struct
-      let keygen rng circuit qap =
-        let pkey, vkey =
-          KeyGen.generate rng circuit qap
-        in
-        pkey, vkey
+    let keygen rng circuit qap =
+      let pkey, vkey =
+        KeyGen.generate rng circuit qap
+      in
+      pkey, vkey
 
-      let prove _rng qap pkey sol =
-        let _p, h = QAP.eval sol qap in
-        Compute.f pkey sol h
+    let prove _rng qap pkey sol =
+      let _p, h = QAP.eval sol qap in
+      Compute.f pkey sol h
 
-      let verify input_output vkey proof =
-        let input_output = Var.Map.add Circuit.one (Fr.of_int 1) input_output in
-        Verify.f vkey input_output proof
-    end
-
-
-    module ZK = struct
-      let keygen = NonZK.keygen
-
-      let prove rng qap pkey sol =
-        let _p, h = QAP.eval sol qap in
-        ZKCompute.f rng qap.target pkey sol h
-
-      let verify = NonZK.verify
-    end
+    let verify input_output vkey proof =
+      let input_output = Var.Map.add Circuit.one (Fr.of_int 1) input_output in
+      Verify.f vkey input_output proof
   end
 
-  include API
+  module ZK = struct
+    type f = C.Fr.t
+
+    type nonrec circuit = circuit
+
+    type nonrec qap = qap
+
+    type pkey = KeyGen.pkey [@@deriving yojson]
+
+    type vkey = KeyGen.vkey [@@deriving yojson]
+
+    type proof = Compute.proof [@@deriving yojson]
+
+    let keygen = NonZK.keygen
+
+    let prove rng qap pkey sol =
+      let _p, h = QAP.eval sol qap in
+      ZKCompute.f rng qap.target pkey sol h
+
+    let verify = NonZK.verify
+  end
 end

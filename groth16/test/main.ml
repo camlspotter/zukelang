@@ -7,10 +7,7 @@ module Comp = Zukelang.Comp.Make(F)
 module Circuit = Circuit.Make(F)
 module QAP = QAP.Make(F)
 
-module Groth16 = struct
-  module G = Groth16.Make(C)
-  include G.API
-end
+module Groth16 = Groth16.Make(C)
 
 let test e =
   let open Format in

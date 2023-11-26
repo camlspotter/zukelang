@@ -1,5 +1,6 @@
 (library
   (name groth16)
   (libraries zarith bls12-381 utils)
+  (preprocess (pps ppx_yojson_conv))
   (flags :standard -warn-error -9-32-34-37)
   )
