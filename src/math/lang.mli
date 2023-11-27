@@ -9,7 +9,7 @@ module Make(F : Field.COMPARABLE) : sig
     | Bool : bool ty
 
   (** Type of ZK computation *)
-  type 'a t =
+  type _ t =
     | Field : F.t -> F.t t
     | Bool : bool -> bool t
     | Add : F.t t * F.t t -> F.t t
@@ -29,6 +29,9 @@ module Make(F : Field.COMPARABLE) : sig
     | Pair : 'a t * 'b t -> ('a * 'b) t
     | Fst : ('a * _) t -> 'a t
     | Snd : (_ * 'a) t -> 'a t
+    | Left : 'a t -> ('a, _) Either.t t
+    | Right : 'b t -> (_, 'b) Either.t t
+    | Case : ('a, 'b) Either.t t * ('a t -> 'c t) * ('b t -> 'c t) -> 'c t
 
   val pp : _ t printer
 
@@ -72,12 +75,20 @@ module Make(F : Field.COMPARABLE) : sig
     val fst : ('a * _) t -> 'a t
 
     val snd : (_ * 'a) t -> 'a t
+
+    val left : 'a t -> ('a, _) Either.t t
+
+    val right : 'a t -> (_, 'a) Either.t t
+
+    val case : ('a, 'b) Either.t t -> ('a t -> 'c t) -> ('b t -> 'c t) -> 'c t
   end
 
   type value =
     | Field of F.t
     | Bool of bool
     | Pair of value * value
+    | Left of value
+    | Right of value
 
   type env = value Var.Map.t
 

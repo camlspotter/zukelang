@@ -12,6 +12,12 @@ let of_string x = x
 
 let to_string x = x
 
+let generator prefix =
+  let cntr = ref 0 in
+  fun () ->
+    incr cntr;
+    of_string (Printf.sprintf "%s%d" prefix !cntr)
+
 module Var_list = struct
   type t = var list [@@deriving yojson]
 end

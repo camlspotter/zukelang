@@ -62,7 +62,7 @@ module Make(F : sig
           | Lang.Field f -> f
           | Bool true -> F.one
           | Bool false -> F.zero
-          | Pair _ -> assert false)
+          | Pair _ | Left _ | Right _ -> assert false)
 
     let rec eval env =
       let to_bool f =
@@ -335,6 +335,26 @@ module Make(F : sig
           (match a with
            | Branch (_, a) -> return a
            | _ -> assert false)
+      | Left a ->
+          let* a = compile env a in
+          return @@ (Branch (Leaf !0, a))
+      | Right a ->
+          let* a = compile env a in
+          return @@ (Branch (Leaf !1, a))
+      | Case _ -> assert false
+
+(*
+      | Case (ab, c, d) ->
+          let* ab = compile env ab in
+          let va, a = var () in
+          let vb, b = var () in
+          let c = compile env (c (Var va)) in
+          let d = compile env (d (Var vb)) in
+          match ab with
+          | Leaf _ -> assert false
+          | Branch (sw, args) ->
+              (* if sw = 0 then *)
+*)
 
   (* If an output affine is more complex than a variable, add a gate
      to add a variable to alias the affine. *)
@@ -391,6 +411,13 @@ module Make(F : sig
 
   let compile t =
     let result, GateM.{ gates; inputs; rev_codes } = compile t GateM.init in
+
+    (* Input variables may be lost in the gates *)
+    let inputs =
+      let vars = Gate.Set.vars gates in
+      Var.Map.filter (fun v _ -> Var.Set.mem v vars) inputs
+    in
+
     let outputs =
       let rec f acc = function
         | Branch (a, b) -> f (f acc a) b
@@ -425,6 +452,8 @@ module Make(F : sig
     | Bool true -> Leaf F.one
     | Bool false -> Leaf F.zero
     | Pair (a, b) -> Branch (value_to_tree a, value_to_tree b)
+    | Left a -> Branch (Leaf F.zero, value_to_tree a)
+    | Right a -> Branch (Leaf F.one, value_to_tree a)
 
   let test e =
     let open Format in
@@ -472,7 +501,7 @@ module Make(F : sig
              | Lang.Field f -> f
              | Bool true -> F.one
              | Bool false -> F.zero
-             | Pair _ -> assert false
+             | Pair _ | Left _ | Right _ -> assert false
            ) inputs) codes
     in
     let o' =

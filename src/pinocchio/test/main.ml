@@ -37,7 +37,10 @@ let () =
   in
   Test.test e
 
-(*
+(* complex pair
+
+   $ONE in the code, but is gone from the circuit!
+*)
 let () =
   let open Lang.S in
   let e =
@@ -48,4 +51,3 @@ let () =
     @@ snd (fst (var y))
   in
   Test.test e
-*)

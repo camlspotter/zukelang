@@ -12,6 +12,8 @@ val of_string : string -> var
 
 val to_string : var -> string
 
+val generator : string -> unit -> t
+
 module Set : sig
   include Set.S with type elt = t
   val pp : t printer
