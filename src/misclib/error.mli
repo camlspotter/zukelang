@@ -11,3 +11,4 @@ type error +=
   | String of string
 
 type nonrec 'a result = ('a, error) result
+(** Result type with the error *)
