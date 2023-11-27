@@ -41,7 +41,7 @@ module Test
   let test e =
     let open Format in
 
-    ef "code: %a@." Lang.pp e;
+    ef "Testing code: %a@." Lang.pp e;
 
     let comp = Comp.compile e in
     let circuit = comp.circuit in
@@ -84,5 +84,6 @@ module Test
       Var.Map.filter (fun v _ -> not (Var.Set.mem v circuit.mids)) sol
     in
     ef "public: @[%a@]@." (Var.Map.pp F.pp) public;
-    assert (Protocol.verify public vkey proof)
+    assert (Protocol.verify public vkey proof);
+    ef "verified!!!@.@."
 end

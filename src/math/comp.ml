@@ -139,7 +139,7 @@ module Make(F : sig
 
     let init =
       { gates= Gate.Set.empty;
-        inputs= Var.Map.singleton Circuit.one (Lang.Public, Field);
+        inputs= Var.Map.empty;
         rev_codes= []
       }
 
@@ -153,9 +153,13 @@ module Make(F : sig
 
     let add_input : type a . Var.t -> Lang.security -> a Lang.ty -> unit t = fun v sec ty ->
       fun s ->
-        if Var.Map.mem v s.inputs then assert false;
-        let ty = match ty with Field -> Field | Bool -> Bool in
-        (), { s with inputs = Var.Map.add v (sec, ty) s.inputs }
+        (* $ONE may be added more than once *)
+        if v = Circuit.one && Var.Map.mem v s.inputs then (), s
+        else (
+          if Var.Map.mem v s.inputs then assert false;
+          let ty = match ty with Field -> Field | Bool -> Bool in
+          (), { s with inputs = Var.Map.add v (sec, ty) s.inputs }
+        )
 
     let add_code : Var.t -> Code.t -> unit t = fun v e ->
       fun s ->
@@ -188,7 +192,9 @@ module Make(F : sig
     let return1 x = return @@ Leaf x in
     fun env ->
       function
-      | Field f -> return1 @@ Affine.of_F f
+      | Field f ->
+          let* () = add_input Circuit.one Public Field in
+          return1 @@ Affine.of_F f
       | Bool true -> return1 !1
       | Bool false -> return1 !0
       | Input (v, security, ty) ->

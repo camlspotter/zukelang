@@ -537,7 +537,6 @@ module Make(C : Ecp.CURVE) = struct
       Compute.f pkey sol h
 
     let verify input_output vkey proof =
-      let input_output = Var.Map.add Circuit.one (Fr.of_int 1) input_output in
       Verify.f vkey input_output proof
   end
 
