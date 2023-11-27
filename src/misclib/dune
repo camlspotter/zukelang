@@ -1,0 +1,7 @@
+(library
+  (name misclib)
+  (public_name zukelang.misc)
+  (libraries zarith bls12-381 unix ppx_yojson_conv_lib hex ocaml-compiler-libs.common)
+  (preprocess (pps ppx_yojson_conv ppxlib.metaquot))
+  (flags :standard -warn-error -9-32-34-37)
+  )
