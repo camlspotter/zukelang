@@ -1,6 +1,6 @@
 # 瑞慶覧(Zukelang), OCaml implemetation of ZK algorithms
 
-![](docs/green-shisa.png)
+![](docs/green-shisa-25.png)
 
 ## `src/pinocchio/`
 
