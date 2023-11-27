@@ -12,3 +12,5 @@ type error +=
 
 type nonrec 'a result = ('a, error) result
 (** Result type with the error *)
+
+module Monad : Monad.S with type 'a t = 'a result

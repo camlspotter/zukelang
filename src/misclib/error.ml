@@ -31,3 +31,10 @@ let () =
       | _ -> None)
 
 type nonrec 'a result = ('a, error) result
+
+module Monad = Monad.Make(struct
+    type nonrec 'a t = 'a result
+    let bind = Result.bind
+    let map = Result.map
+    let return x = Ok x
+  end)

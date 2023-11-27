@@ -169,7 +169,7 @@ module Make(F : sig
 
   let rec compile1 : type a . (Var.t * Affine.t tree) list -> a Lang.t -> Affine.t GateM.t =
     fun env t ->
-    let open GateM in
+    let open GateM.Syntax in
     let+ res = compile env t in
     match res with
     | Leaf af -> af
@@ -180,6 +180,7 @@ module Make(F : sig
     let open Affine in
     let open Affine.Infix in
     let open GateM in
+    let open GateM.Syntax in
     let var () =
       let v = var () in
       v, of_var v
@@ -333,6 +334,7 @@ module Make(F : sig
      to add a variable to alias the affine. *)
   let fix_output : Affine.t -> Affine.t GateM.t = fun a ->
     let open GateM in
+    let open GateM.Syntax in
     match Var.Map.bindings a (* XXX Affine.bindings or to_list *) with
     | [] -> (* zero *)
         return a
@@ -365,7 +367,7 @@ module Make(F : sig
     }
 
   let rec mapM_tree (f : 'a -> 'b GateM.t) tree =
-    let open GateM in
+    let open GateM.Syntax in
     match tree with
     | Leaf a ->
         let* bt = f a in
@@ -377,7 +379,7 @@ module Make(F : sig
 
   (* Final mending of gates *)
   let compile t =
-    let open GateM in
+    let open GateM.Syntax in
     let* a = compile [] t in
     mapM_tree fix_output a
 
