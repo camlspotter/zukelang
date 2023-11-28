@@ -41,7 +41,7 @@ module Test
   let test e =
     let open Format in
 
-    ef "Testing code: %a@." Lang.pp e;
+    ef "Testing code: %a@." Lang.Expr.pp e;
 
     let comp = Comp.compile e in
     let circuit = comp.circuit in

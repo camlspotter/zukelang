@@ -7,10 +7,10 @@ module Groth16 = Groth16.Make(C)
 module Test = Protocol.Test(F)(Groth16)
 
 let () =
-  let open Lang.S in
+  let open Lang.Expr.C in
   let e =
-    let x = Lang.var () in
-    let_ x (input secret ty_field) (if_ (var x == !0) !1 !2)
+    let x = Var.make "x" in
+    let_ x (input secret ty_field) (if_ (var x Lang.Type.Field == !0) !1 !2)
   in
   Test.test e
 
@@ -21,18 +21,18 @@ let () =
    input_public must be empty!
 *)
 let () =
-  let open Lang.S in
+  let open Lang.Expr.C in
   let e =
-    let x = Lang.var () in
-    let_ x (input secret ty_field) (var x * var x)
+    let x = Var.make "x" in
+    let_ x (input secret ty_field) (var x Lang.Type.Field * var x Lang.Type.Field)
   in
   Test.test e
 
 (* simple pair *)
 let () =
-  let open Lang.S in
+  let open Lang.Expr.C in
   let e =
-    let x = Lang.var () in
-    let_ x (input secret ty_field) (pair (var x + !1) (var x * var x))
+    let x = Var.make "x" in
+    let_ x (input secret ty_field) (pair (var x Lang.Type.Field + !1) (var x Lang.Type.Field * var x Lang.Type.Field))
   in
   Test.test e

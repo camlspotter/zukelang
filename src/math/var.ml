@@ -12,9 +12,9 @@ let of_string x = x
 
 let to_string x = x
 
-let generator prefix =
+let make =
   let cntr = ref 0 in
-  fun () ->
+  fun prefix ->
     incr cntr;
     of_string (Printf.sprintf "%s%d" prefix !cntr)
 

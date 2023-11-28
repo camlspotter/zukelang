@@ -17,7 +17,7 @@ module Make(F : sig
 
     type t = code
 
-    module S : sig
+    module C : sig
       val ( * ) : t -> t -> t
       val ( / ) : t -> t -> t
       val not : t -> t
@@ -33,7 +33,7 @@ module Make(F : sig
 
     type env = F.t Var.Map.t
 
-    val convert_env : Lang.Make(F).env -> env
+    val convert_env : Lang.Make(F).Env.t -> env
 
     val eval : env -> t -> F.t
 
@@ -44,23 +44,19 @@ module Make(F : sig
 
   val gen_value : ty -> F.t Gen.t
 
-  type 'a tree =
-    | Leaf of 'a
-    | Branch of 'a tree * 'a tree
-
   type t =
     { gates : Circuit.Make(F).Gate.Set.t;
       inputs : (Lang.Make(F).security * ty) Var.Map.t;
       mids : Var.Set.t;
       outputs : Var.Set.t;
       codes : (Var.var * Code.code) list;
-      result : Circuit.Make(F).Affine.t tree;
+      result : Circuit.Make(F).Affine.t list;
       circuit : Circuit.Make(F).t
     }
 
-  val compile : 'a Lang.Make(F).t -> t
+  val compile : 'a Lang.Make(F).Expr.t -> t
 
-  val test : 'a Lang.Make(F).t -> unit
+  val test : 'a Lang.Make(F).Expr.t -> unit
 end
 
 val test : unit -> unit
