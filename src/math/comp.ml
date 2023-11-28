@@ -394,20 +394,35 @@ module Make(F : sig
           let* a = compile env a in
           let* () = add_input Circuit.one Public Field in
           return @@ !1 :: a
-      | Case _ -> assert false
+      | Case (ab, va, c, vb, d) ->
+          (match ab.ty with
+           | Either (aty, bty) ->
+               let* ab = compile env ab in
+               let tag = List.hd ab in
+               let for_a = List.tl @@ List.take Stdlib.(components aty + 1) ab in
+               let for_b = List.tl @@ List.take Stdlib.(components bty + 1) ab in
+               let* c = compile ((va, for_a) :: env) c in
+               let* d = compile ((vb, for_b) :: env) d in
+               (* tag= 0 or 1
 
-(*
-      | Case (ab, c, d) ->
-          let* ab = compile env ab in
-          let va, a = var () in
-          let vb, b = var () in
-          let c = compile env (c (Var va)) in
-          let d = compile env (d (Var vb)) in
-          match ab with
-          | Leaf _ -> assert false
-          | Branch (sw, args) ->
-              (* if sw = 0 then *)
-*)
+                  (tag - 1) * c + tag * d
+
+                  x = (tag - 1) * c
+                  y = tag * d
+                  x + y
+               *)
+               let* () = add_input Circuit.one Public Field in
+               let join (c, d) =
+                 let vx, x = var () in
+                 let vy, y = var () in
+                 let* () = add_code vx Code.C.( !&(tag - !1) * !&c ) in
+                 let* () = add_gate x (tag - !1) c in
+                 let* () = add_code vy Code.C.( !&tag * !&d ) in
+                 let* () = add_gate y tag d in
+                 return @@ x + y
+               in
+               mapM join (List.combine c d)
+           | _ -> assert false)
 
   (* If an output affine is more complex than a variable, add a gate
      to add a variable to alias the affine. *)
@@ -464,6 +479,7 @@ module Make(F : sig
       List.fold_left (fun acc a ->
           match Var.Map.bindings a with
           | [v, _] when v <> Circuit.one -> Var.Set.add v acc
+          | [] (* 0 *) -> acc
           | _ -> assert false) Var.Set.empty result
     in
     let mids =
@@ -556,11 +572,9 @@ let test () =
   let open Lang.Expr.C in
 
   Comp.test begin
-    let x = Var.make "x" in
-    let_ x (input secret ty_field) (fun x -> if_ (x == !0) !1 !2)
+    let_ (input secret ty_field) (fun x -> if_ (x == !0) !1 !2)
   end;
 
   Comp.test begin
-    let x = Var.make "x" in
-    let_ x (input secret ty_field) (fun x -> pair (x + !1) (x * !2))
+    let_ (input secret ty_field) (fun x -> pair (x + !1) (x * !2))
   end

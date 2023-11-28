@@ -9,8 +9,7 @@ module Test = Protocol.Test(F)(Groth16)
 let () =
   let open Lang.Expr.C in
   let e =
-    let x = Var.make "x" in
-    let_ x (input secret ty_field) (fun x -> if_ (x == !0) !1 !2)
+    let_ (input secret ty_field) (fun x -> if_ (x == !0) !1 !2)
   in
   Test.test e
 
@@ -23,8 +22,7 @@ let () =
 let () =
   let open Lang.Expr.C in
   let e =
-    let x = Var.make "x" in
-    let_ x (input secret ty_field) (fun x -> x * x)
+    let_ (input secret ty_field) (fun x -> x * x)
   in
   Test.test e
 
@@ -32,7 +30,6 @@ let () =
 let () =
   let open Lang.Expr.C in
   let e =
-    let x = Var.make "x" in
-    let_ x (input secret ty_field) (fun x -> (pair (x + !1) (x * x)))
+    let_ (input secret ty_field) (fun x -> (pair (x + !1) (x * x)))
   in
   Test.test e
