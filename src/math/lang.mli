@@ -69,7 +69,7 @@ module Make(F : Field.COMPARABLE) : sig
       val input : security -> 'a Type.t -> 'a t
       val to_field : 'a t -> F.t t
       val var : Var.var -> 'a Type.t -> 'a t
-      val let_ : Var.var -> 'a t -> 'b t -> 'b t
+      val let_ : Var.var -> 'a t -> ('a t -> 'b t) -> 'b t
       val ( == ) : 'a t -> 'a t -> bool t
       val pair : 'a t -> 'b t -> ('a * 'b) t
       val fst : ('a * 'b) t -> 'a t

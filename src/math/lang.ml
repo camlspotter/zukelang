@@ -153,7 +153,9 @@ module Make(F : Field.COMPARABLE) = struct
 
       let var v ty = mk (Var v) ty
 
-      let let_ v a b = mk (Let (v, a, b)) b.ty
+      let let_ v a b =
+        let b = b (var v a.ty) in
+        mk (Let (v, a, b)) b.ty
 
       let (==) a b = mk (Eq (a, b)) ty_bool
 

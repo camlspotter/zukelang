@@ -10,7 +10,7 @@ let () =
   let open Lang.Expr.C in
   let e =
     let x = Var.make "x" in
-    let_ x (input secret ty_field) (if_ (var x Lang.Type.Field == !0) !1 !2)
+    let_ x (input secret ty_field) (fun x -> if_ (x == !0) !1 !2)
   in
   Test.test e
 
@@ -24,7 +24,7 @@ let () =
   let open Lang.Expr.C in
   let e =
     let x = Var.make "x" in
-    let_ x (input secret ty_field) (var x Lang.Type.Field * var x Lang.Type.Field)
+    let_ x (input secret ty_field) (fun x -> x * x)
   in
   Test.test e
 
@@ -33,6 +33,6 @@ let () =
   let open Lang.Expr.C in
   let e =
     let x = Var.make "x" in
-    let_ x (input secret ty_field) (pair (var x Lang.Type.Field + !1) (var x Lang.Type.Field * var x Lang.Type.Field))
+    let_ x (input secret ty_field) (fun x -> (pair (x + !1) (x * x)))
   in
   Test.test e

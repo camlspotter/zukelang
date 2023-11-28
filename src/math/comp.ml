@@ -103,9 +103,7 @@ module Make(F : sig
           of_bool F.(a = b)
       | If (a, b, c) ->
           let a = eval env a in
-          let b = eval env b in
-          let c = eval env c in
-          if to_bool a then b else c
+          if to_bool a then eval env b else eval env c
       | Affine a ->
           Var.Map.fold (fun k ck acc ->
               try
@@ -245,6 +243,7 @@ module Make(F : sig
                let vd, d = var () in
                let* () = add_code vc Code.C.(!& !1 / !& b) in
                let* () = add_code vd Code.C.(!&a * !& c) in
+               let* () = add_input Circuit.one Public Field in
                let* () = add_gate !1 b c in
                let* () = add_gate d a c in
                return1 d)
@@ -258,6 +257,7 @@ module Make(F : sig
           let* a = compile1 env a in
           let vb, b = var () in
           let* () = add_code vb Code.C.(not !&a) in
+          let* () = add_input Circuit.one Public Field in
           let* () = add_gate !0 a b in
           let* () = add_gate !1 (a + b) !1 in
           return1 b
@@ -274,6 +274,7 @@ module Make(F : sig
           let vc, c = var () in
           let vd, d = var () in
           let a_plus_b = a + b in (* a + b creates no gate *)
+          let* () = add_input Circuit.one Public Field in
           let* () = add_code vc Code.C.(!&a || !&b) in
           let* () = add_code vd Code.C.(if_ !&c (!& !1 / !& a_plus_b) !& !0) in
           let* () = add_gate c a_plus_b d in
@@ -307,24 +308,55 @@ module Make(F : sig
                        return @@ c + d)
                  bc)
       | Eq (a, b) ->
-          (* $a == b$
-
-             c where
-               1 - c = (a - b) * d
-               0 = (a - b) * c
-          *)
           let* a = compile env a in
           let* b = compile env b in
-          let vc, c = var () in
-          let vd, d = var () in
-          (* no pair equality yet *)
-          let a = match a with [a] -> a | _ -> assert false in (* TODO *)
-          let b = match b with [a] -> a | _ -> assert false in
-          let* () = add_code vc Code.C.(!&a == !&b) in
-          let* () = add_code vd Code.C.(if_ !&c !& !0 (!& !1 / !&(a - b))) in
-          let* () = add_gate (!1 - c) (a - b) d in
-          let* () = add_gate !0 (a - b) c in
-          return1 c
+          (match a, b with
+          | [a], [b] ->
+              (* $a == b$
+
+                 c where
+                   1 - c = (a - b) * d
+                   0 = (a - b) * c
+              *)
+              let vc, c = var () in
+              let vd, d = var () in
+              let* () = add_input Circuit.one Public Field in
+              let* () = add_code vc Code.C.(!&a == !&b) in
+              let* () = add_code vd Code.C.(if_ !&c !& !0 (!& !1 / !&(a - b))) in
+              let* () = add_gate (!1 - c) (a - b) d in
+              let* () = add_gate !0 (a - b) c in
+              return1 c
+          | _ ->
+              (* $as == bs$
+
+                 ci where
+                   1 - ci = (ai - bi) * di
+                   0 = (ai - bi) * c
+              *)
+              let abs = List.combine a b in
+              let* cs =
+                mapM (fun (a, b) ->
+                    let vc, c = var () in
+                    let vd, d = var () in
+                    let* () = add_input Circuit.one Public Field in
+                    let* () = add_code vc Code.C.(!&a == !&b) in
+                    let* () = add_code vd Code.C.(if_ !&c !& !0 (!& !1 / !&(a - b))) in
+                    let* () = add_gate (!1 - c) (a - b) d in
+                    let* () = add_gate !0 (a - b) c in
+                    return c ) abs
+              in
+              let* x =
+                match cs with
+                | [] -> assert false
+                | c :: cs ->
+                    fold_leftM (fun acc c ->
+                        let vx, x = var () in
+                        let* () = add_code vx Code.C.(!&acc * !&c) in
+                        let* () = add_gate x acc c in
+                        return x
+                      ) c cs
+              in
+              return1 x)
 
       | To_field t -> compile env t
 
@@ -360,6 +392,7 @@ module Make(F : sig
           return @@ !0 :: a
       | Right a ->
           let* a = compile env a in
+          let* () = add_input Circuit.one Public Field in
           return @@ !1 :: a
       | Case _ -> assert false
 
@@ -524,10 +557,10 @@ let test () =
 
   Comp.test begin
     let x = Var.make "x" in
-    let_ x (input secret ty_field) (if_ (var x Lang.Type.Field == !0) !1 !2)
+    let_ x (input secret ty_field) (fun x -> if_ (x == !0) !1 !2)
   end;
 
   Comp.test begin
     let x = Var.make "x" in
-    let_ x (input secret ty_field) (pair (var x Lang.Type.Field + !1) (var x Lang.Type.Field * !2))
+    let_ x (input secret ty_field) (fun x -> pair (x + !1) (x * !2))
   end
