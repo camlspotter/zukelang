@@ -13,6 +13,8 @@ module type T = sig
 
   val mapM : ('a -> 'b t) -> 'a list -> 'b list t
 
+  val fold_leftM : ('acc -> 'a -> 'acc t) -> 'acc -> 'a list -> 'acc t
+
   module Syntax : sig
 
     val (let*) : 'a t -> ('a -> 'b t) -> 'b t
@@ -45,6 +47,15 @@ module Make(M : S) = struct
           loop (y::acc) xs
     in
     loop [] xs
+
+  let fold_leftM f acc xs =
+    let rec g acc = function
+      | [] -> return acc
+      | x::xs ->
+          let* acc = f acc x in
+          g acc xs
+    in
+    g acc xs
 end
 
 module type S2 = sig
@@ -61,6 +72,8 @@ module type T2 = sig
   include S2
 
   val mapM : ('a -> ('b, 'z) t) -> 'a list -> ('b list, 'z) t
+
+  val fold_leftM : ('acc -> 'a -> ('acc, 'z) t) -> 'acc -> 'a list -> ('acc, 'z) t
 
   module Syntax : sig
 
@@ -93,4 +106,13 @@ module Make2(M : S2) = struct
           loop (y::acc) xs
     in
     loop [] xs
+
+  let fold_leftM f acc xs =
+    let rec g acc = function
+      | [] -> return acc
+      | x::xs ->
+          let* acc = f acc x in
+          g acc xs
+    in
+    g acc xs
 end

@@ -13,6 +13,8 @@ module type T = sig
 
   val mapM : ('a -> 'b t) -> 'a list -> 'b list t
 
+  val fold_leftM : ('acc -> 'a -> 'acc t) -> 'acc -> 'a list -> 'acc t
+
   module Syntax : sig
 
     val (let*) : 'a t -> ('a -> 'b t) -> 'b t
@@ -40,6 +42,8 @@ module type T2 = sig
   include S2
 
   val mapM : ('a -> ('b, 'z) t) -> 'a list -> ('b list, 'z) t
+
+  val fold_leftM : ('acc -> 'a -> ('acc, 'z) t) -> 'acc -> 'a list -> ('acc, 'z) t
 
   module Syntax : sig
 
