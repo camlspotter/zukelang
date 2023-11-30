@@ -1,22 +1,20 @@
 open Misclib
 
-type var = string [@@deriving yojson]
+type var = string * int [@@deriving yojson]
 
 type t = var [@@deriving yojson]
 
-let compare = String.compare
+let compare = compare
 
-let pp ppf s = Format.string ppf s
+let to_string (s,n) = Printf.sprintf "%s__%d" s n
 
-let of_string x = x
-
-let to_string x = x
+let pp ppf v = Format.string ppf @@ to_string v
 
 let make =
   let cntr = ref 0 in
   fun prefix ->
     incr cntr;
-    of_string (Printf.sprintf "%s__%d" prefix !cntr)
+    prefix, !cntr
 
 module Var_list = struct
   type t = var list [@@deriving yojson]

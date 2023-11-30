@@ -7,9 +7,6 @@ module Make(F : Field.COMPARABLE) : sig
       as 2 * one  in the circuit.
   *)
 
-  val out : Var.t
-  (** The special variable for the output *)
-
   module Affine : sig
     (** $\Sigma_{k} c_k x_k$  where $x_0 = \mathtt{one}$ *)
     type affine = F.t Var.Map.t

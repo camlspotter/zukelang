@@ -1,12 +1,9 @@
 open Misclib
 
-let one = Var.of_string "$ONE"
-
-let out = Var.of_string "$OUT"
+let one = Var.make "$ONE"
 
 module Make(F : Field.COMPARABLE) = struct
   let one = one
-  let out = out
 
   module Affine = struct
     type affine = F.t Var.Map.t

@@ -1,6 +1,6 @@
 open Misclib
 
-type var = private string [@@deriving yojson]
+type var = private string * int [@@deriving yojson]
 
 type t = var [@@deriving yojson]
 
@@ -8,9 +8,7 @@ val compare : t -> t -> int
 
 val pp : t printer
 
-val of_string : string -> var
-
-val to_string : var -> string
+val to_string : t -> string
 
 val make : string -> t
 
