@@ -1,6 +1,7 @@
 (library
   (name pinocchio)
-  (libraries math)
+  (public_name zukelang.pinocchio)
+  (libraries zukelang)
   (preprocess (pps ppx_yojson_conv))
   (flags :standard -warn-error -9-32-34-37)
   )

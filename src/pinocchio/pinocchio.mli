@@ -1,4 +1,4 @@
-open Math
+open Zk
 
 module Make(C : Ecp.CURVE) : sig
   (** Verified computation without ZK *)

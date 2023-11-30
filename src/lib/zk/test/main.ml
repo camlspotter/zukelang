@@ -1,3 +1,3 @@
-open Math
+open Zk
 
 let () = Comp.test ()

@@ -1,5 +1,5 @@
 open Misclib
-open Ppx_yojson_conv_lib.Yojson_conv
+open Yojson_conv
 
 module type S = sig
   (** element of field *)

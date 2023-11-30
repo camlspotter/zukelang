@@ -15,3 +15,4 @@ module Error = Error
 module JSON = JSON
 module GADT = GADT
 module Ptree = Ptree
+module Yojson_conv = Ppx_yojson_conv_lib.Yojson_conv

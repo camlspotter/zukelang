@@ -1,4 +1,4 @@
-open Math
+open Zk
 
 module Make(C : Ecp.CURVE) : Protocol.S
   with type f = C.Fr.t

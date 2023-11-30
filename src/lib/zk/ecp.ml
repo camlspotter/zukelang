@@ -1,7 +1,7 @@
 (* Elliptic Curve Pairings *)
 
 open Misclib
-open Ppx_yojson_conv_lib.Yojson_conv
+open Yojson_conv
 
 (*
   (* $\{ g^s^i \}_{i\in[d]}$ *)

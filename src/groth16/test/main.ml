@@ -1,4 +1,4 @@
-open Math
+open Zk
 
 module C = Ecp.Bls12_381
 module F = Ecp.Bls12_381.Fr

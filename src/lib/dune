@@ -1,0 +1,5 @@
+(library
+  (name zukelang)
+  (public_name zukelang)
+  (libraries zk)
+  )

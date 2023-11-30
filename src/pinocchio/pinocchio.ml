@@ -3,9 +3,9 @@
    Protocol 1 is not for ordinary QAP.
 *)
 
-open Ppx_yojson_conv_lib.Yojson_conv
-open Math
+open Zukelang
 open Var.Infix (* for (#!) *)
+open Yojson_conv
 
 module Make(C : Ecp.CURVE) = struct
 
