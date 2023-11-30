@@ -1,6 +1,7 @@
 (* https://www.zeroknowledgeblog.com/index.php/groth16 *)
 
 open Math
+open Ppx_yojson_conv_lib.Yojson_conv
 
 module Make(C : Ecp.CURVE) = struct
   open C
