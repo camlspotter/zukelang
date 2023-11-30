@@ -50,7 +50,7 @@ end) : sig
       | Right : 'b t -> ('f, 'b) Either.t desc
       | Case : ('a, 'b) Either.t t * Var.var * 'c t * Var.var * 'c t -> 'c desc
 
-    val ptree : 'a t -> Ppxlib_ast.Ast.expression
+    val ptree : 'a t -> Ptree.t
 
     val pp : Format.formatter -> 'a t -> unit
 
@@ -77,7 +77,6 @@ end) : sig
       val if_ : bool t -> 'a t -> 'a t -> 'a t
       val input : string -> security -> 'a Type.t -> 'a t
       val to_field : 'a t -> F.t t
-      val var : Var.var -> 'a Type.t -> 'a t
       val let_ : 'a t -> ('a t -> 'b t) -> 'b t
       val ( == ) : 'a t -> 'a t -> bool t
       val pair : 'a t -> 'b t -> ('a * 'b) t

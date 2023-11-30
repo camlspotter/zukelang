@@ -244,7 +244,7 @@ module Make(F : sig
               Right t2
 
     let ptree v =
-      let rec ptree : type a. a t -> Ppxlib_ast.Ast.expression = fun v ->
+      let rec ptree : type a. a t -> Ptree.t = fun v ->
         let loc = Location.none in
         match v with
         | Field f -> Ptree.int @@ Format.asprintf "%a" F.pp f

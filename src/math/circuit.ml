@@ -30,7 +30,7 @@ module Make(F : Field.COMPARABLE) = struct
       in
       f @@ Var.Map.bindings a
 
-    let pp ppf t = Ppxlib_ast.Pprintast.expression ppf @@ ptree t
+    let pp ppf t = Ptree.pp ppf @@ ptree t
 
     let compare = Var.Map.compare F.compare
 
