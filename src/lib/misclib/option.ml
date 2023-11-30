@@ -1,6 +1,8 @@
 include Stdlib.Option
 
 include Monad.Make(struct
-    include Stdlib.Option
+    type 'a t = 'a option = None | Some of 'a
+    let bind = bind
+    let map = map
     let return x = Some x
   end)

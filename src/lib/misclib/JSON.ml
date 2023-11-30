@@ -1,9 +1,6 @@
 type json = Yojson.Safe.t
 type t = json
 
-type 'a encoder = 'a -> t
-type 'a decoder = t -> ('a, string) result
-
 module Conv = struct
   open Ppx_yojson_conv_lib
   include Yojson_conv

@@ -1,5 +1,9 @@
 include Stdlib.Format
 
+type t = Stdlib.Format.formatter
+
+type 'a printer = Stdlib.Format.formatter -> 'a -> unit
+
 let list sep f =
   pp_print_list ~pp_sep:(fun ppf () -> fprintf ppf sep) f
 
@@ -19,8 +23,6 @@ let seq sep f ppf s =
 let f = fprintf
 
 let ef = eprintf
-
-let flip = Fun.flip
 
 let int = pp_print_int
 

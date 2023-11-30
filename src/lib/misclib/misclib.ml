@@ -1,6 +1,7 @@
 include Misc
 
 module Format = Format
+type 'a printer = 'a Format.printer
 
 module Monad = Monad
 module String = String

@@ -1,4 +1,3 @@
-type 'a printer = Format.formatter -> 'a -> unit
 type 'a comparator = 'a -> 'a -> int
 
 let with_time f =
@@ -27,7 +26,7 @@ module Z = struct
   include Z
   let pp = pp_print
 
-  open Ppx_yojson_conv_lib.Yojson_conv
+  open JSON.Conv
 
   let yojson_of_t z = yojson_of_string @@ Z.to_string z
 
