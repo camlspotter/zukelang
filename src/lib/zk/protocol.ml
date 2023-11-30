@@ -7,20 +7,17 @@ module type S = sig
 
   type qap
 
-  type pkey [@@deriving yojson] (** Proving key *)
+  type pkey [@@deriving yojson]
 
-  type vkey [@@deriving yojson] (** Verificaiton key *)
+  type vkey [@@deriving yojson]
 
   type proof [@@deriving yojson]
 
   val keygen : Gen.rng -> circuit -> qap -> pkey * vkey
-  (** Key generation *)
 
   val prove : Gen.rng -> qap -> pkey -> f Var.Map.t -> proof
-  (** Obtain a proof of the computation *)
 
   val verify : f Var.Map.t -> vkey -> proof -> bool
-  (** Verify the computation proof *)
 end
 
 module Test

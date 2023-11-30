@@ -187,10 +187,10 @@ module Bls12_381_zeta = struct
 
        (g^a)^(2^32) = 1
   *)
-  open Ecp.Bls12_381
+  open Curve.Bls12_381
 
   let m, a =
-    let module Fr = Ecp.Bls12_381.Fr in
+    let module Fr = Curve.Bls12_381.Fr in
     let order = Fr.order in
     let rec f acc i =
       match Z.(div_rem i (of_int 2)) with
@@ -220,7 +220,7 @@ module Bls12_381_zeta = struct
 end
 
 module FFT_Fr = Make(struct
-    include Ecp.Bls12_381.Fr
+    include Curve.Bls12_381.Fr
 
     let polynomial_equal = Poly.equal
 

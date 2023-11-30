@@ -604,7 +604,7 @@ module Make(F : sig
 end
 
 let test () =
-  let module Comp = Make(Ecp.Bls12_381.Fr) in
+  let module Comp = Make(Curve.Bls12_381.Fr) in
   let module Lang = Comp.Lang in
   let open Lang.Expr.Combinator in
 

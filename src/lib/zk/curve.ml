@@ -49,13 +49,14 @@ module type G = sig
   include JSON.Conv.S with type t := t
 end
 
-module type CURVE = sig
+module type S = sig
   module Fr : sig
     include Field.COMPARABLE
     include G with type t := t and type fr := t
     val ( ** ) : t -> Z.t -> t
     val gen : t Gen.t
     module Poly : Polynomial.S with type f = t
+    val order : Z.t
   end
   module G1 : G with type fr := Fr.t
   module G2 : G with type fr := Fr.t
@@ -125,7 +126,6 @@ module Bls12_381 = struct
         Z.pp_print ppf z
       let (~-) = negate
       let ( - ) x y = x + ~- y
-      let equal = eq
       let of_q q = of_z q.Q.num / of_z q.Q.den
       let sum = List.fold_left (+) zero
       let gen rng = random ~state:rng ()
@@ -137,7 +137,9 @@ module Bls12_381 = struct
     include Fr
     module Poly = struct
       include Polynomial.Make(Fr)
+(*
       let of_q : Polynomial.Make(Q).t -> t = List.map Fr.of_q
+*)
     end
 
     include ExtendMap(struct
@@ -152,7 +154,9 @@ module Bls12_381 = struct
   module ExtendG( G : sig
       type t
       val to_bytes : t -> bytes
+(*
       val of_bytes_opt : bytes -> t option
+*)
       val add : t -> t -> t
       val mul : t -> Fr.t -> t
       val negate : t -> t

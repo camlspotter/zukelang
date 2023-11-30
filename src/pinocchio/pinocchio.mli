@@ -1,6 +1,6 @@
 open Zk
 
-module Make(C : Ecp.CURVE) : sig
+module Make(C : Curve.S) : sig
   (** Verified computation without ZK *)
   module NonZK : Protocol.S
     with type f = C.Fr.t

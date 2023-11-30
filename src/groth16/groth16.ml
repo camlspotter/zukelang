@@ -3,7 +3,7 @@
 open Zukelang
 open Yojson_conv
 
-module Make(C : Ecp.CURVE) = struct
+module Make(C : Curve.S) = struct
   open C
 
   module Base = struct
@@ -11,7 +11,7 @@ module Make(C : Ecp.CURVE) = struct
 
     module Poly = Fr.Poly
 
-    module type G = Ecp.G with type fr := Fr.t
+    module type G = Curve.G with type fr := Fr.t
 
     module QAP = QAP.Make(Fr)
 

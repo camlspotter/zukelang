@@ -1,7 +1,7 @@
 open Zk
 
-module C = Ecp.Bls12_381
-module F = Ecp.Bls12_381.Fr
+module C = Curve.Bls12_381
+module F = Curve.Bls12_381.Fr
 module Lang = Lang.Make(F)
 module Groth16 = Groth16.Make(C)
 module Test = Protocol.Test(F)(Groth16)

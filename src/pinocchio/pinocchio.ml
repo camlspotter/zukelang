@@ -7,7 +7,7 @@ open Zukelang
 open Var.Infix (* for (#!) *)
 open Yojson_conv
 
-module Make(C : Ecp.CURVE) = struct
+module Make(C : Curve.S) = struct
 
   (* open, not include.
      [include C] instead opens the gate to the module typing hell *)
@@ -21,7 +21,7 @@ module Make(C : Ecp.CURVE) = struct
 
   type qap = QAP.t
 
-  module type G = Ecp.G with type fr := Fr.t
+  module type G = Curve.G with type fr := Fr.t
 
   let g1 = (module G1 : G with type t = C.G1.t)
   let g2 = (module G2 : G with type t = C.G2.t)
