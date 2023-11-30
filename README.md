@@ -2,6 +2,15 @@
 
 ![](docs/green-shisa-25.png)
 
+## How to build
+
+```
+% git clone https://github.com/camlspotter/zukelang
+% cd zukelang
+% opam install .
+% dune runtest
+```
+
 ## `src/pinocchio/`
 
 Protocol 2 of [Pinochio: Nearly Practical Verifiable Computation](https://eprint.iacr.org/2013/279.pdf) 
