@@ -109,9 +109,9 @@ module Make(F : sig
     let rec eval_list env = function
       | [] -> env
       | (v,c)::codes ->
-          Format.ef "eval %a = %a@." Var.pp v pp c;
+          Format.ef "  @[<v2>%a = @[%a@] = ...@]@." Var.pp v pp c;
           let value = eval env c in
-          Format.ef "        = %a@." F.pp value;
+          Format.ef "  @[<v2>%a = @[%a@]@]@." Var.pp v F.pp value;
           if Var.Map.mem v env then assert false;
           let env = Var.Map.add v value env in
           eval_list env codes
@@ -458,9 +458,13 @@ module Make(F : sig
         let* () = add_gate o a (Affine.Infix.(!) 1) in
         return o
 
+  type input_type = Lang.security * Lang.Type.packed * Var.t list
+
+  type input_value = Lang.security * Lang.Value.packed * (Var.t * F.t) list
+
   type t =
     { gates : Gate.Set.t;
-      inputs : (Lang.security * Lang.Type.packed * Var.t list) String.Map.t;
+      inputs : input_type String.Map.t;
       inputs_vars : Lang.security Var.Map.t;
       mids : Var.Set.t;
       outputs : Var.Set.t;
@@ -528,6 +532,25 @@ module Make(F : sig
               Var.Map.add v f env_code) env_code vs) inputs Var.Map.empty
     in
     inputs, env_lang, env_code
+
+  let convert_inputs inputs_type inputs_value =
+    let inputs =
+      String.Map.mapi (fun name (sec, Lang.Type.Packed ty, vs) ->
+          match String.Map.find_opt name inputs_value with
+          | None ->
+              invalid_argf "convert_inputs: variable not defined: %s" name
+          | Some (Lang.Value.Packed (v, ty') as value) ->
+              match Lang.Type.equal ty ty' with
+              | None -> invalid_argf "convert_inputs: type mismatch: %s" name
+              | Some Refl ->
+                  sec, value, List.combine vs (compile_value ty v)) inputs_type
+    in
+    let env_code =
+      String.Map.fold (fun _name (_, _, vs) env_code ->
+          List.fold_left (fun env_code (v,f) ->
+              Var.Map.add v f env_code) env_code vs) inputs Var.Map.empty
+    in
+    inputs, env_code
 
   let test e =
     let open Format in

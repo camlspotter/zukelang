@@ -6,12 +6,11 @@ module Lang = Lang.Make(F)
 module Groth16 = Groth16.Make(C)
 module Test = Protocol.Test(F)(Groth16)
 
+open Lang.Expr.C
+
 let () =
-  let open Lang.Expr.C in
-  let e =
-    let_ (input "input" secret ty_field) (fun x -> if_ (x == !0) !1 !2)
-  in
-  Test.test e
+  Test.random_test @@
+  let_ (input "input" secret ty_field) (fun x -> if_ (x == !0) !1 !2)
 
 (* $ONE is not used
 
@@ -20,16 +19,10 @@ let () =
    input_public must be empty!
 *)
 let () =
-  let open Lang.Expr.C in
-  let e =
-    let_ (input "input" secret ty_field) (fun x -> x * x)
-  in
-  Test.test e
+  Test.random_test @@
+  let_ (input "input" secret ty_field) (fun x -> x * x)
 
 (* simple pair *)
 let () =
-  let open Lang.Expr.C in
-  let e =
-    let_ (input "input" secret ty_field) (fun x -> (pair (x + !1) (x * x)))
-  in
-  Test.test e
+  Test.random_test @@
+  let_ (input "input" secret ty_field) (fun x -> (pair (x + !1) (x * x)))

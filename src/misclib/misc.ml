@@ -12,6 +12,7 @@ let log2 =
   fun f -> log f /. l2
 
 let failwithf fmt = Format.kasprintf failwith fmt
+let invalid_argf fmt = Format.kasprintf invalid_arg fmt
 
 module Converter = struct
   module type S = sig

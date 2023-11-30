@@ -16,7 +16,30 @@ with some help of [The zero knowledge blog](https://www.zeroknowledgeblog.com/in
 
 Test program: `dune exec src/groth16/test/main.exe`
 
-## `Math.Lang`
+## How to write your own ZK program and play with it
+
+### Random test
+
+Make a program using a mini DSL and give it to `Math.Protocol.Test(_)(_).random_test`:
+
+```
+open Math
+module C = Ecp.Bls12_381                      (* Pairing friendly curve *)
+module F = C.Fr                               (* Prime field *)
+module Lang = Lang.Make(F)                    (* DSL *)
+module Pinocchio = Pinocchio.Make(C)          (* Protocol *)
+module Test = Protocol.Test(F)(Pinocchio.ZK)  (* Test for Pinocchio ZK protocol *)
+
+open Lang.Expr.C
+
+let () =
+  Test.random_test @@ 
+  (* Your program written using Lang.Expr.C functions. *)
+  let_ (input "secret_input" secret ty_field) (fun x -> x * x * x + x + !3)
+```
+
+
+### `Math.Lang`
 
 `Math.Lang.Make(F).Expr.C` provides a minimal DSL to write ZK programs:
 
