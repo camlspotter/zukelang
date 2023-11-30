@@ -6,7 +6,7 @@ module Lang = Lang.Make(F)
 module Pinocchio = Pinocchio.Make(C)
 module Test = Protocol.Test(F)(Pinocchio.ZK)
 
-open Lang.Expr.C
+open Lang.Expr.Combinator
 
 (* I know [x] such that [x^3 + x + 3 = y] *)
 let () =

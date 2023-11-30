@@ -25,7 +25,7 @@ module Make(F : sig
 
     type t = code
 
-    module C = struct
+    module Combinator = struct
       let ( * ) a b = Mul (a, b)
       let (/) a b = Div (a, b)
       let not a = Not a
@@ -199,6 +199,8 @@ module Make(F : sig
     let open Affine.Infix in
     let open GateM in
     let open GateM.Syntax in
+    let module ExprC = Expr.Combinator in
+    let module CodeC = Code.Combinator in
     let var () =
       let v = Var.make "c" in
       v, of_var v
@@ -217,7 +219,7 @@ module Make(F : sig
           let* t1 = compile1 env t1 in
           let* t2 = compile1 env t2 in
           return1 @@ t1 + t2
-      | Sub (t1, t2) -> compile env Expr.C.(t1 + ~- t2)
+      | Sub (t1, t2) -> compile env ExprC.(t1 + ~- t2)
       | Neg t ->
           let* t = compile1 env t in
           return1 @@ t *$ F.of_int (-1)
@@ -230,7 +232,7 @@ module Make(F : sig
            | _, Some f2 -> return1 @@ t1 *$ f2
            | _ ->
                let va, a = var () in
-               let* () = add_code va Code.C.(!&t1 * !&t2) in
+               let* () = add_code va CodeC.(!&t1 * !&t2) in
                let* () = add_gate a t1 t2 in
                return1 a)
       | Div (a, b) ->
@@ -247,13 +249,13 @@ module Make(F : sig
                     1 = b * c *)
                let vc, c = var () in
                let vd, d = var () in
-               let* () = add_code vc Code.C.(!& !1 / !& b) in
-               let* () = add_code vd Code.C.(!&a * !& c) in
+               let* () = add_code vc CodeC.(!& !1 / !& b) in
+               let* () = add_code vd CodeC.(!&a * !& c) in
                let* () = add_one in
                let* () = add_gate !1 b c in
                let* () = add_gate d a c in
                return1 d)
-      | Not { desc= Bool b; _ } -> compile env @@ Expr.C.bool (not b)
+      | Not { desc= Bool b; _ } -> compile env @@ ExprC.bool (not b)
       | Not a ->
           (* b
              where
@@ -262,13 +264,13 @@ module Make(F : sig
           *)
           let* a = compile1 env a in
           let vb, b = var () in
-          let* () = add_code vb Code.C.(not !&a) in
+          let* () = add_code vb CodeC.(not !&a) in
           let* () = add_one in
           let* () = add_gate !0 a b in
           let* () = add_gate !1 (a + b) !1 in
           return1 b
       | And (a, b) ->
-          compile env Expr.C.(to_field a * to_field b)
+          compile env ExprC.(to_field a * to_field b)
       | Or (a, b) ->
           (* c
              where
@@ -281,8 +283,8 @@ module Make(F : sig
           let vd, d = var () in
           let a_plus_b = a + b in (* a + b creates no gate *)
           let* () = add_one in
-          let* () = add_code vc Code.C.(!&a || !&b) in
-          let* () = add_code vd Code.C.(if_ !&c (!& !1 / !& a_plus_b) !& !0) in
+          let* () = add_code vc CodeC.(!&a || !&b) in
+          let* () = add_code vd CodeC.(if_ !&c (!& !1 / !& a_plus_b) !& !0) in
           let* () = add_gate c a_plus_b d in
           let* () = add_gate !0 a_plus_b (!1 - c) in
           return1 c
@@ -309,7 +311,7 @@ module Make(F : sig
                    | Some b_c ->
                        return @@ c + a *$ b_c
                    | None ->
-                       let* () = add_code vd Code.C.(!&a * !&b_c) in
+                       let* () = add_code vd CodeC.(!&a * !&b_c) in
                        let* () = add_gate d a b_c in
                        return @@ c + d)
                  bc)
@@ -327,8 +329,8 @@ module Make(F : sig
               let vc, c = var () in
               let vd, d = var () in
               let* () = add_one in
-              let* () = add_code vc Code.C.(!&a == !&b) in
-              let* () = add_code vd Code.C.(if_ !&c !& !0 (!& !1 / !&(a - b))) in
+              let* () = add_code vc CodeC.(!&a == !&b) in
+              let* () = add_code vd CodeC.(if_ !&c !& !0 (!& !1 / !&(a - b))) in
               let* () = add_gate (!1 - c) (a - b) d in
               let* () = add_gate !0 (a - b) c in
               return1 c
@@ -345,8 +347,8 @@ module Make(F : sig
                     let vc, c = var () in
                     let vd, d = var () in
                     let* () = add_one in
-                    let* () = add_code vc Code.C.(!&a == !&b) in
-                    let* () = add_code vd Code.C.(if_ !&c !& !0 (!& !1 / !&(a - b))) in
+                    let* () = add_code vc CodeC.(!&a == !&b) in
+                    let* () = add_code vd CodeC.(if_ !&c !& !0 (!& !1 / !&(a - b))) in
                     let* () = add_gate (!1 - c) (a - b) d in
                     let* () = add_gate !0 (a - b) c in
                     return c ) abs
@@ -357,7 +359,7 @@ module Make(F : sig
                 | c :: cs ->
                     fold_leftM (fun acc c ->
                         let vx, x = var () in
-                        let* () = add_code vx Code.C.(!&acc * !&c) in
+                        let* () = add_code vx CodeC.(!&acc * !&c) in
                         let* () = add_gate x acc c in
                         return x
                       ) c cs
@@ -421,9 +423,9 @@ module Make(F : sig
                let join (c, d) =
                  let vx, x = var () in
                  let vy, y = var () in
-                 let* () = add_code vx Code.C.( !&(tag - !1) * !&c ) in
+                 let* () = add_code vx CodeC.( !&(tag - !1) * !&c ) in
                  let* () = add_gate x (tag - !1) c in
-                 let* () = add_code vy Code.C.( !&tag * !&d ) in
+                 let* () = add_code vy CodeC.( !&tag * !&d ) in
                  let* () = add_gate y tag d in
                  return @@ x + y
                in
@@ -435,6 +437,7 @@ module Make(F : sig
   let fix_output : Affine.t -> Affine.t GateM.t = fun a ->
     let open GateM in
     let open GateM.Syntax in
+    let module CodeC = Code.Combinator in
     match Var.Map.bindings a (* XXX Affine.bindings or to_list *) with
     | [] -> (* zero *)
         return a
@@ -446,14 +449,14 @@ module Make(F : sig
         (* Weird.  Add another gate for a workaround *)
         let vo = Var.make "v" in
         let o = Affine.of_var vo in
-        let* () = add_code vo Code.C.(!&a) in
+        let* () = add_code vo CodeC.(!&a) in
         let* () = add_one in
         let* () = add_gate o a (Affine.Infix.(!) 1) in
         return o
     | _ -> (* Affine *)
         let vo = Var.make "v" in
         let o = Affine.of_var vo in
-        let* () = add_code vo Code.C.(!&a) in
+        let* () = add_code vo CodeC.(!&a) in
         let* () = add_one in
         let* () = add_gate o a (Affine.Infix.(!) 1) in
         return o
@@ -603,7 +606,7 @@ end
 let test () =
   let module Comp = Make(Ecp.Bls12_381.Fr) in
   let module Lang = Comp.Lang in
-  let open Lang.Expr.C in
+  let open Lang.Expr.Combinator in
 
   Comp.test begin
     let_ (input "input" secret ty_field) (fun x -> if_ (x == !0) !1 !2)

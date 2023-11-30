@@ -6,7 +6,7 @@ module Lang = Lang.Make(F)
 module Groth16 = Groth16.Make(C)
 module Test = Protocol.Test(F)(Groth16)
 
-open Lang.Expr.C
+open Lang.Expr.Combinator
 
 let () =
   Test.random_test @@

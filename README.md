@@ -7,7 +7,8 @@
 ```
 % git clone https://github.com/camlspotter/zukelang
 % cd zukelang
-% opam install .
+% opam install --deps-only .
+% dune build
 % dune runtest
 ```
 
@@ -32,14 +33,15 @@ Test program: `dune exec src/groth16/test/main.exe`
 Make a program using a mini DSL and give it to `Math.Protocol.Test(_)(_).random_test`:
 
 ```
-open Math
+open Zk
+
 module C = Ecp.Bls12_381                      (* Pairing friendly curve *)
 module F = C.Fr                               (* Prime field *)
 module Lang = Lang.Make(F)                    (* DSL *)
 module Pinocchio = Pinocchio.Make(C)          (* Protocol *)
 module Test = Protocol.Test(F)(Pinocchio.ZK)  (* Test for Pinocchio ZK protocol *)
 
-open Lang.Expr.C
+open Lang.Expr.Combinator
 
 let () =
   Test.random_test @@ 

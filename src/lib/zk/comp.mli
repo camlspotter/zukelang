@@ -17,7 +17,7 @@ module Make(F : sig
 
     type t = code
 
-    module C : sig
+    module Combinator : sig
       val ( * ) : t -> t -> t
       val ( / ) : t -> t -> t
       val not : t -> t

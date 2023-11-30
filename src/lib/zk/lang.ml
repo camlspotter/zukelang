@@ -120,7 +120,7 @@ module Make(F : sig
 
     let pp ppf t = Ptree.pp ppf @@ ptree t
 
-    module C = struct
+    module Combinator = struct
       let ty_field : _ Type.t = Field
 
       let ty_bool : _ Type.t = Bool
