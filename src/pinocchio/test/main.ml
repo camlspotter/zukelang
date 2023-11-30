@@ -78,5 +78,5 @@ let () =
 let () =
   let open Lang.Expr.C in
   Test.test @@
-  let_ (input "input" secret (ty_pair ty_field ty_field)) @@ fun x ->
+  let_ (input "input" secret (ty_field *: ty_field)) @@ fun x ->
   fst x + snd x

@@ -126,8 +126,10 @@ module Make(F : sig
       let ty_bool : _ Type.t = Bool
 
       let ty_pair t1 t2 : _ Type.t = Pair (t1, t2)
+      let ( *: ) = ty_pair
 
       let ty_either t1 t2 : _ Type.t = Either (t1, t2)
+      let ( +: ) = ty_either
 
       let public = Public
       let secret = Secret

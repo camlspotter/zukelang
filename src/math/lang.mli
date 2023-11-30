@@ -57,8 +57,8 @@ end) : sig
     module C : sig
       val ty_field : F.t Type.t
       val ty_bool : bool Type.t
-      val ty_pair : 'a Type.t -> 'b Type.t -> ('a * 'b) Type.t
-      val ty_either : 'a Type.t -> 'b Type.t -> ('a, 'b) Either.t Type.t
+      val ( *: )  : 'a Type.t -> 'b Type.t -> ('a * 'b) Type.t
+      val ( +: )  : 'a Type.t -> 'b Type.t -> ('a, 'b) Either.t Type.t
 
       val public : security
       val secret : security
