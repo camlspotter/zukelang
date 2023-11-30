@@ -35,16 +35,20 @@ module Make(F : sig
       let if_ a b c = If (a, b, c)
     end
 
-    let rec pp ppf =
-      let open Format in
-      function
-      | Mul (a, b) -> f ppf "(%a) * (%a)" pp a pp b
-      | Div (a, b) -> f ppf "(%a) / (%a)" pp a pp b
-      | Not a -> f ppf "not (%a)" pp a
-      | Or (a, b) -> f ppf "(%a) || (%a)" pp a pp b
-      | Affine a -> f ppf "(%a)" Affine.pp a
-      | Eq (a, b) -> f ppf "(%a) == (%a)" pp a pp b
-      | If (a, b, c) -> f ppf "(if %a then %a else %a)" pp a pp b pp c
+    let rec ptree : t -> Ptree.t =
+      fun c ->
+      let loc = Location.none in
+      match c with
+      | Mul (c1, c2) -> [%expr [%e ptree c1] * [%e ptree c2]]
+      | Div (c1, c2) -> [%expr [%e ptree c1] / [%e ptree c2]]
+      | Not c -> [%expr not [%e ptree c]]
+      | Or (c1, c2) -> [%expr [%e ptree c1] || [%e ptree c2]]
+      | Affine a -> Circuit.Affine.ptree a
+      | Eq (c1, c2) -> [%expr [%e ptree c1] = [%e ptree c2]]
+      | If (c1, c2, c3) ->
+          [%expr if [%e ptree c1] then [%e ptree c2] else [%e ptree c3]]
+
+    let pp ppf t = Ptree.pp ppf @@ ptree t
 
     let rec vars =
       let (++) = Var.Set.union in

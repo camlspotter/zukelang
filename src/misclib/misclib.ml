@@ -14,3 +14,4 @@ module Exn = Exn
 module Error = Error
 module JSON = JSON
 module GADT = GADT
+module Ptree = Ptree

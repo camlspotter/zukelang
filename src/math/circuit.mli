@@ -12,6 +12,7 @@ module Make(F : Field.COMPARABLE) : sig
     type affine = F.t Var.Map.t
     type t = affine
 
+    val ptree : t -> Ppxlib_ast.Ast.expression
     val pp : t printer
     val compare : t comparator
 

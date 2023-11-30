@@ -1,6 +1,6 @@
 open Misclib
 
-let one = Var.make "$ONE"
+let one = Var.make "ONE"
 
 module Make(F : Field.COMPARABLE) = struct
   let one = one
@@ -10,21 +10,27 @@ module Make(F : Field.COMPARABLE) = struct
 
     type t = affine
 
-    let pp ppf m =
-      let open Format in
-      if Var.Map.is_empty m then
-        Format.f ppf "0"
-      else
-        Format.seq " + "
-          (fun ppf (v, n) ->
-             if v = one then
-               F.pp ppf n
-             else if F.(n = one) then
-               Var.pp ppf v
-             else
-               f ppf "%a * %a" F.pp n Var.pp v)
-          ppf
-        @@ Var.Map.to_seq m
+    let ptree a =
+      let loc = Location.none in
+      let g (v,n) =
+        match F.(n = one), v = one with
+        | _, true -> (* 1 *)
+            Ptree.int @@ Format.asprintf "%a" F.pp n
+        | true, false -> (* v *)
+            Ptree.var @@ Var.to_string v
+        | _ ->
+          [%expr
+            [%e Ptree.var @@ Var.to_string v]
+            * [%e Ptree.int @@ Format.asprintf "%a" F.pp n]]
+      in
+      let rec f = function
+        | [] -> [%expr 0]
+        | [vn] -> g vn
+        | vn::vns -> [%expr [%e g vn] + [%e f vns]]
+      in
+      f @@ Var.Map.bindings a
+
+    let pp ppf t = Ppxlib_ast.Pprintast.expression ppf @@ ptree t
 
     let compare = Var.Map.compare F.compare
 
@@ -70,11 +76,11 @@ module Make(F : Field.COMPARABLE) = struct
 
     type t = gate
 
-    let pp ppf { lhs; l; r } =
-      Format.f ppf "@[<2>%a@ = @[@[(%a)@]@ * @[(%a)@]@]@]"
-        Affine.pp lhs
-        Affine.pp l
-        Affine.pp r
+    let ptree { lhs; l; r } =
+      let loc = Location.none in
+      [%expr [%e Affine.ptree lhs] = [%e Affine.ptree l] * [%e Affine.ptree r]]
+
+    let pp ppf g = Ptree.pp ppf @@ ptree g
 
     let compare a b =
       match Affine.compare a.lhs b.lhs with

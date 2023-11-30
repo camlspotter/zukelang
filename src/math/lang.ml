@@ -81,11 +81,10 @@ module Make(F : sig
       | Case : ('a, 'b) Either.t t * Var.t * 'c t * Var.t * 'c t -> 'c desc
 
     let ptree e =
-      let rec ptree : type a. a t -> Ppxlib_ast.Ast.expression = fun e ->
+      let rec ptree : type a. a t -> Ptree.t = fun e ->
         let loc = Location.none in
-        let open Ppxlib_ast.Ast_helper in
         match e.desc with
-        | Field f -> Exp.constant @@ Const.integer (Format.asprintf "%a" F.pp f)
+        | Field f -> Ptree.int @@ Format.asprintf "%a" F.pp f
         | Bool true -> [%expr true]
         | Bool false -> [%expr false]
         | Add (t1, t2) -> [%expr [%e ptree t1] + [%e ptree t2]]
@@ -93,17 +92,18 @@ module Make(F : sig
         | Mul (t1, t2) -> [%expr [%e ptree t1] * [%e ptree t2]]
         | Div (t1, t2) -> [%expr [%e ptree t1] / [%e ptree t2]]
         | Input (name, Public) ->
-            [%expr (input [%e Exp.constant @@ Const.string name] : public)]
+            [%expr (input [%e Ptree.string name] : public)]
         | Input (name, Secret) ->
-            [%expr (input [%e Exp.constant @@ Const.string name] : secret)]
-        | Var v -> Exp.ident { txt= Longident.Lident (Var.to_string v); loc= Location.none }
+            [%expr (input [%e Ptree.string name] : secret)]
+        | Var v -> Ptree.var (Var.to_string v)
         | Not b -> [%expr not [%e ptree b]]
         | And (t1, t2) -> [%expr [%e ptree t1] && [%e ptree t2]]
         | Or (t1, t2) -> [%expr [%e ptree t1] || [%e ptree t2]]
         | If (t1, t2, t3) -> [%expr if [%e ptree t1] then [%e ptree t2] else [%e ptree t3]]
         | Eq (t1, t2) -> [%expr [%e ptree t1] == [%e ptree t2]]
         | To_field t -> [%expr to_field [%e ptree t]]
-        | Let (v, t1, t2) -> [%expr let [%p Pat.var {txt= Var.to_string v; loc= Location.none}] = [%e ptree t1] in [%e ptree t2]]
+        | Let (v, t1, t2) ->
+            [%expr let [%p Ptree.pvar @@ Var.to_string v] = [%e ptree t1] in [%e ptree t2]]
         | Neg t -> [%expr ~- [%e ptree t]]
         | Pair (a, b) -> [%expr ([%e ptree a], [%e ptree b])]
         | Fst a -> [%expr fst [%e ptree a]]
@@ -113,12 +113,12 @@ module Make(F : sig
         | Case (ab, va, a, vb, b) ->
             [%expr
               match [%e ptree ab] with
-              | Left [%p Pat.var {txt= Var.to_string va; loc= Location.none}] -> [%e ptree a]
-              | Right [%p Pat.var {txt= Var.to_string vb; loc= Location.none}] -> [%e ptree b]]
+              | Left [%p Ptree.pvar @@ Var.to_string va] -> [%e ptree a]
+              | Right [%p Ptree.pvar @@ Var.to_string vb] -> [%e ptree b]]
       in
       ptree e
 
-    let pp ppf t = Ppxlib_ast.Pprintast.expression ppf @@ ptree t
+    let pp ppf t = Ptree.pp ppf @@ ptree t
 
     module C = struct
       let ty_field : _ Type.t = Field
@@ -246,9 +246,8 @@ module Make(F : sig
     let ptree v =
       let rec ptree : type a. a t -> Ppxlib_ast.Ast.expression = fun v ->
         let loc = Location.none in
-        let open Ppxlib_ast.Ast_helper in
         match v with
-        | Field f -> Exp.constant @@ Const.integer (Format.asprintf "%a" F.pp f)
+        | Field f -> Ptree.int @@ Format.asprintf "%a" F.pp f
         | Bool true -> [%expr true]
         | Bool false -> [%expr false]
         | Pair (a, b) -> [%expr ([%e ptree a], [%e ptree b])]
@@ -257,7 +256,7 @@ module Make(F : sig
       in
       ptree v
 
-    let pp ppf t = Ppxlib_ast.Pprintast.expression ppf @@ ptree t
+    let pp ppf t = Ptree.pp ppf @@ ptree t
   end
 
   module Env = struct
