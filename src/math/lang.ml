@@ -1,8 +1,14 @@
 open Misclib
 
-module Make(F : Field.COMPARABLE) = struct
+module Make(F : sig
+    include Field.COMPARABLE
+    val gen : t Gen.t
+  end) = struct
 
   type security = Public | Secret
+
+  let pp_security ppf s =
+    Format.string ppf (match s with Public -> "public" | Secret -> "secret")
 
   module Type = struct
     type _ t =
@@ -10,6 +16,8 @@ module Make(F : Field.COMPARABLE) = struct
       | Bool : bool t
       | Pair : 'a t * 'b t -> ('a * 'b) t
       | Either : 'a t * 'b t -> ('a, 'b) Either.t t
+
+    type packed = Packed : _ t -> packed
 
     let rec equal : type a b . a t -> b t -> (a, b) GADT.eq option = fun a b ->
       let open GADT in
@@ -31,6 +39,14 @@ module Make(F : Field.COMPARABLE) = struct
                | None -> None
                | Some Refl -> Some Refl)
       | _ -> None
+
+    let rec pp : type a. a t printer = fun ppf ->
+      let open Format in
+      function
+      | Field -> f ppf "field"
+      | Bool -> f ppf "bool"
+      | Pair (ty1, ty2) -> f ppf "(%a * %a)" pp ty1 pp ty2
+      | Either (ty1, ty2) -> f ppf "(%a, %a) Either.t" pp ty1 pp ty2
   end
 
   module Expr = struct
@@ -47,7 +63,7 @@ module Make(F : Field.COMPARABLE) = struct
       | Sub : F.t t * F.t t -> F.t desc
       | Mul : F.t t * F.t t -> F.t desc
       | Div : F.t t * F.t t -> F.t desc
-      | Input : Var.t * security -> 'a desc
+      | Input : string * security -> 'a desc
       | Not : bool t -> bool desc
       | And : bool t * bool t -> bool desc
       | Or : bool t * bool t -> bool desc
@@ -76,10 +92,10 @@ module Make(F : Field.COMPARABLE) = struct
         | Sub (t1, t2) -> [%expr [%e ptree t1] - [%e ptree t2]]
         | Mul (t1, t2) -> [%expr [%e ptree t1] * [%e ptree t2]]
         | Div (t1, t2) -> [%expr [%e ptree t1] / [%e ptree t2]]
-        | Input (v, Public) ->
-            [%expr ([%e Exp.ident { txt= Longident.Lident (Var.to_string v); loc= Location.none }] : public)]
-        | Input (v, Secret) ->
-            [%expr ([%e Exp.ident { txt= Longident.Lident (Var.to_string v); loc= Location.none }] : secret)]
+        | Input (name, Public) ->
+            [%expr (input [%e Exp.constant @@ Const.string name] : public)]
+        | Input (name, Secret) ->
+            [%expr (input [%e Exp.constant @@ Const.string name] : secret)]
         | Var v -> Exp.ident { txt= Longident.Lident (Var.to_string v); loc= Location.none }
         | Not b -> [%expr not [%e ptree b]]
         | And (t1, t2) -> [%expr [%e ptree t1] && [%e ptree t2]]
@@ -142,9 +158,7 @@ module Make(F : Field.COMPARABLE) = struct
 
       let if_ a b c = mk (If (a, b, c)) b.ty
 
-      let input sec ty =
-        let v = Var.make "input" in
-        mk (Input (v, sec)) ty
+      let input name sec ty = mk (Input (name, sec)) ty
 
       let to_field : type a. a t -> F.t t = fun t ->
         match t.ty with
@@ -154,7 +168,7 @@ module Make(F : Field.COMPARABLE) = struct
       let var v ty = mk (Var v) ty
 
       let let_ a b =
-        let v = Var.make "let" in
+        let v = Var.make "x" in
         let b = b (var v a.ty) in
         mk (Let (v, a, b)) b.ty
 
@@ -207,6 +221,41 @@ module Make(F : Field.COMPARABLE) = struct
       match Type.equal ty ty' with
       | Some GADT.Refl -> Some t
       | None -> None
+
+    let rec gen : type a. a Type.t -> a t Gen.t = fun ty ->
+      let open Gen.Syntax in
+      match ty with
+      | Field -> let+ f = F.gen in Field f
+      | Bool -> let+ b = Gen.bool in Bool b
+      | Pair (ty1, ty2) ->
+          let* t1 = gen ty1 in
+          let+ t2 = gen ty2 in
+          Pair (t1, t2)
+      | Either (ty1, ty2) ->
+          let* b = Gen.bool in
+          match b with
+          | true ->
+              let+ t1 = gen ty1 in
+              Left t1
+          | false ->
+              let+ t2 = gen ty2 in
+              Right t2
+
+    let ptree v =
+      let rec ptree : type a. a t -> Ppxlib_ast.Ast.expression = fun v ->
+        let loc = Location.none in
+        let open Ppxlib_ast.Ast_helper in
+        match v with
+        | Field f -> Exp.constant @@ Const.integer (Format.asprintf "%a" F.pp f)
+        | Bool true -> [%expr true]
+        | Bool false -> [%expr false]
+        | Pair (a, b) -> [%expr ([%e ptree a], [%e ptree b])]
+        | Left a -> [%expr Left [%e ptree a]]
+        | Right a -> [%expr Right [%e ptree a]]
+      in
+      ptree v
+
+    let pp ppf t = Ppxlib_ast.Pprintast.expression ppf @@ ptree t
   end
 
   module Env = struct
@@ -221,91 +270,93 @@ module Make(F : Field.COMPARABLE) = struct
   end
 
   module Eval = struct
-    let eval env e =
-      let rec eval : type a . Env.t -> a Expr.t -> a Value.t = fun env e ->
-        let open Expr in
-        let field = function
-          | Value.Field f -> f
-          | _ -> assert false
-        in
-        let bool = function
-          | Value.Bool b -> b
-          | _ -> assert false
-        in
-        match e.desc with
-        | Input (v, _sec) -> Env.find v e.ty env
-        | Field f -> Field f
-        | Bool b -> Bool b
-        | Add (a, b) ->
-            let a = field @@ eval env a in
-            let b = field @@ eval env b in
-            Field F.(a + b)
-        | Sub (a, b) ->
-            let a = field @@ eval env a in
-            let b = field @@ eval env b in
-            Field F.(a - b)
-        | Mul (a, b) ->
-            let a = field @@ eval env a in
-            let b = field @@ eval env b in
-            Field F.(a * b)
-        | Div (a, b) ->
-            let a = field @@ eval env a in
-            let b = field @@ eval env b in
-            Field F.(a / b)
-        | Not a ->
-            let a = bool @@ eval env a in
-            Bool (not a)
-        | And (a, b) ->
-            let a = bool @@ eval env a in
-            let b = bool @@ eval env b in
-            Bool (a && b)
-        | Or (a, b) ->
-            let a = bool @@ eval env a in
-            let b = bool @@ eval env b in
-            Bool (a || b)
-        | If (a, b, c) ->
-            let a = bool @@ eval env a in
-            if a then eval env b else eval env c
-        | Eq (a, b) ->
-            let a = eval env a in
-            let b = eval env b in
-            Bool (a = b)
-        | To_field a ->
-            (match eval env a with
-             | Field f -> Field f
-             | Bool true -> Field F.one
-             | Bool false -> Field F.zero
-             | Pair _ | Left _ | Right _ -> assert false)
-        | Let (v, a, b) ->
-            eval (Env.add v a.ty (eval env a) env) b
-        | Var v ->
-            Env.find v e.ty env
-        | Neg a ->
-            let f = field @@ eval env a in
-            Field F.(~- f)
-        | Pair (a, b) ->
-            let a = eval env a in
-            let b = eval env b in
-            Pair (a, b)
-        | Fst a ->
-            (match eval env a with
-             | Pair (a, _) -> a
-             | _ -> assert false)
-        | Snd a ->
-            (match eval env a with
-             | Pair (_, b) -> b
-             | _ -> assert false)
-        | Left a -> Left (eval env a)
-        | Right a -> Right (eval env a)
-        | Case (ab, va, a, vb, b) ->
-            (match ab.ty with
-             | Either (aty, bty) ->
-                 (match eval env ab with
-                  | Left x -> eval (Env.add va aty x env) a
-                  | Right x -> eval (Env.add vb bty x env) b
-                  | _ -> assert false)
-             | _ -> assert false)
+    let eval inputs e =
+      let rec eval : type a . Env.t -> a Expr.t -> a Value.t =
+        fun env e ->
+          let open Expr in
+          let field = function
+            | Value.Field f -> f
+            | _ -> assert false
+          in
+          let bool = function
+            | Value.Bool b -> b
+            | _ -> assert false
+          in
+          match e.desc with
+          | Input (name, _sec) ->
+              Option.get @@ Value.unpack e.ty @@ String.Map.find name inputs
+          | Field f -> Field f
+          | Bool b -> Bool b
+          | Add (a, b) ->
+              let a = field @@ eval env a in
+              let b = field @@ eval env b in
+              Field F.(a + b)
+          | Sub (a, b) ->
+              let a = field @@ eval env a in
+              let b = field @@ eval env b in
+              Field F.(a - b)
+          | Mul (a, b) ->
+              let a = field @@ eval env a in
+              let b = field @@ eval env b in
+              Field F.(a * b)
+          | Div (a, b) ->
+              let a = field @@ eval env a in
+              let b = field @@ eval env b in
+              Field F.(a / b)
+          | Not a ->
+              let a = bool @@ eval env a in
+              Bool (not a)
+          | And (a, b) ->
+              let a = bool @@ eval env a in
+              let b = bool @@ eval env b in
+              Bool (a && b)
+          | Or (a, b) ->
+              let a = bool @@ eval env a in
+              let b = bool @@ eval env b in
+              Bool (a || b)
+          | If (a, b, c) ->
+              let a = bool @@ eval env a in
+              if a then eval env b else eval env c
+          | Eq (a, b) ->
+              let a = eval env a in
+              let b = eval env b in
+              Bool (a = b)
+          | To_field a ->
+              (match eval env a with
+               | Field f -> Field f
+               | Bool true -> Field F.one
+               | Bool false -> Field F.zero
+               | Pair _ | Left _ | Right _ -> assert false)
+          | Let (v, a, b) ->
+              eval (Env.add v a.ty (eval env a) env) b
+          | Var v ->
+              Env.find v e.ty env
+          | Neg a ->
+              let f = field @@ eval env a in
+              Field F.(~- f)
+          | Pair (a, b) ->
+              let a = eval env a in
+              let b = eval env b in
+              Pair (a, b)
+          | Fst a ->
+              (match eval env a with
+               | Pair (a, _) -> a
+               | _ -> assert false)
+          | Snd a ->
+              (match eval env a with
+               | Pair (_, b) -> b
+               | _ -> assert false)
+          | Left a -> Left (eval env a)
+          | Right a -> Right (eval env a)
+          | Case (ab, va, a, vb, b) ->
+              (match ab.ty with
+               | Either (aty, bty) ->
+                   (match eval env ab with
+                    | Left x -> eval (Env.add va aty x env) a
+                    | Right x -> eval (Env.add vb bty x env) b
+                    | _ -> assert false)
+               | _ -> assert false)
       in
-      eval env e
+      eval Var.Map.empty e
   end
 end

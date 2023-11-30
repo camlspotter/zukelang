@@ -1,8 +1,13 @@
 open Misclib
 
-module Make(F : Field.COMPARABLE) : sig
+module Make(F : sig
+    include Field.COMPARABLE
+    val gen : t Gen.t
+end) : sig
 
   type security = Public | Secret
+
+  val pp_security : security printer
 
   module Type : sig
     type _ t =
@@ -10,6 +15,10 @@ module Make(F : Field.COMPARABLE) : sig
       | Bool : bool t
       | Pair : 'a t * 'b t -> ('a * 'b) t
       | Either : 'a t * 'b t -> ('a, 'b) Either.t t
+
+    type packed = Packed : _ t -> packed
+
+    val pp : _ t printer
 
     val equal : 'a t -> 'b t -> ('a, 'b) GADT.eq option
   end
@@ -24,7 +33,7 @@ module Make(F : Field.COMPARABLE) : sig
       | Sub : F.t t * F.t t -> F.t desc
       | Mul : F.t t * F.t t -> F.t desc
       | Div : F.t t * F.t t -> F.t desc
-      | Input : Var.var * security -> 'a desc
+      | Input : string * security -> 'a desc
       | Not : bool t -> bool desc
       | And : bool t * bool t -> bool desc
       | Or : bool t * bool t -> bool desc
@@ -66,7 +75,7 @@ module Make(F : Field.COMPARABLE) : sig
       val ( && ) : bool t -> bool t -> bool t
       val ( || ) : bool t -> bool t -> bool t
       val if_ : bool t -> 'a t -> 'a t -> 'a t
-      val input : security -> 'a Type.t -> 'a t
+      val input : string -> security -> 'a Type.t -> 'a t
       val to_field : 'a t -> F.t t
       val var : Var.var -> 'a Type.t -> 'a t
       val let_ : 'a t -> ('a t -> 'b t) -> 'b t
@@ -91,6 +100,10 @@ module Make(F : Field.COMPARABLE) : sig
     type packed = Packed : 'a t * 'a Type.t -> packed
 
     val unpack : 'a Type.t -> packed -> 'a t option
+
+    val pp : _ t printer
+
+    val gen : 'a Type.t -> 'a t Gen.t
   end
 
   module Env : sig
@@ -102,6 +115,6 @@ module Make(F : Field.COMPARABLE) : sig
   end
 
   module Eval : sig
-    val eval : Env.t -> 'a Expr.t -> 'a Value.t
+    val eval : Value.packed String.Map.t -> 'a Expr.t -> 'a Value.t
   end
 end

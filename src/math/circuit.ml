@@ -124,7 +124,7 @@ module Make(F : Field.COMPARABLE) = struct
         let lhs = Var.Map.domain lhs in
         let l = Var.Map.domain l in
         let r = Var.Map.domain r in
-        Var.Set.(union (union lhs (union l r)) acc)) gates Var.Set.empty
+        Var.Set.(let (++) = union in lhs ++ l ++ r ++ acc)) gates Var.Set.empty
 
   let ios t =
     let vars = vars t.gates in

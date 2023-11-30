@@ -55,28 +55,49 @@ module Test
     let ekey, vkey = Protocol.keygen rng circuit qap in
      ef "keygen done@.";
 
-    let rng = Random.State.make_self_init () in
-
     let rec eval () =
-      let env =
-        Var.Map.mapi (fun v (_, ty) ->
-            if v = Circuit.one then F.one
-            else Comp.gen_value ty rng) comp.inputs
+      let rng = Random.State.make_self_init () in
+      let inputs, env_lang, env_code = Comp.gen_inputs comp.inputs rng in
+
+      ef "Inputs: @[<v>%a@]@."
+        (list ",@ " (fun ppf (name, (sec, Lang.Value.Packed (v, _ty), _)) ->
+             f ppf "%s : %a = %a" name Lang.pp_security sec Lang.Value.pp v))
+      @@ String.Map.bindings inputs;
+
+      (* Note that some variables may be dropped from the final circuit *)
+      let env_code =
+        let vars = Circuit.vars circuit.gates in
+        Var.Map.filter (fun v _ -> Var.Set.mem v vars) env_code
       in
-      ef "inputs @[<v>%a@]@." (Var.Map.pp F.pp) env;
-      match Comp.Code.eval_list env comp.codes with
-      | exception Division_by_zero ->
-          ef "Division by zero. Re-evaluating...@.";
+
+      ef "Inputs_code @[<v>%a@]@." (Var.Map.pp F.pp) env_code;
+
+      try
+        let o = Lang.Eval.eval env_lang e in
+
+        let sol = Comp.Code.eval_list env_code comp.codes in
+        o, sol
+      with
+      | Division_by_zero ->
           eval ()
-      | sol -> sol
     in
 
-    let sol = eval () in
+    let o, sol = eval () in
     ef "evaluated@.";
+    ef "o: @[<v>%a@]@." Lang.Value.pp o;
     ef "sol: @[<v>%a@]@." (Var.Map.pp F.pp) sol;
 
-    let rng = Random.State.make_self_init () in
-    let proof = Protocol.prove rng qap ekey sol in
+    let fs_o = Comp.compile_value e.ty o in
+    let fs_sol = List.map (Circuit.Affine.eval sol) comp.result in
+    if fs_o <> fs_sol then begin
+      ef "ty : %a@." Lang.Type.pp e.ty;
+      ef "components: %d@." @@ Comp.components e.ty;
+      ef "fs_o  : @[%a@]@." (list ",@ " F.pp) fs_o;
+      ef "fs_sol: @[%a@]@." (list ",@ " F.pp) fs_sol;
+      assert false;
+    end;
+
+    let proof = Gen.with_rng Protocol.prove qap ekey sol in
     ef "proven@.";
 
     ef "verifying@.";

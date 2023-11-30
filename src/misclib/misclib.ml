@@ -3,6 +3,7 @@ include Misc
 module Format = Format
 
 module Monad = Monad
+module String = String
 module List = List
 module Seq = Seq
 module Option = Option

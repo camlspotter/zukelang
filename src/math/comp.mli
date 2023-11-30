@@ -33,20 +33,19 @@ module Make(F : sig
 
     type env = F.t Var.Map.t
 
-    val convert_env : Lang.Make(F).Env.t -> env
-
     val eval : env -> t -> F.t
 
     val eval_list : env -> (Var.var * t) list -> env
   end
 
-  type ty = Field | Bool
+  val components : 'a Lang.Make(F).Type.t -> int
 
-  val gen_value : ty -> F.t Gen.t
+  val compile_value : 'a Lang.Make(F).Type.t -> 'a Lang.Make(F).Value.t -> F.t list
 
   type t =
     { gates : Circuit.Make(F).Gate.Set.t;
-      inputs : (Lang.Make(F).security * ty) Var.Map.t;
+      inputs : (Lang.Make(F).security * Lang.Make(F).Type.packed * Var.t list) String.Map.t;
+      inputs_vars : Lang.Make(F).security Var.Map.t;
       mids : Var.Set.t;
       outputs : Var.Set.t;
       codes : (Var.var * Code.code) list;
@@ -55,6 +54,12 @@ module Make(F : sig
     }
 
   val compile : 'a Lang.Make(F).Expr.t -> t
+
+  val gen_inputs :
+    (Lang.Make(F).security * Lang.Make(F).Type.packed * Var.var list) String.Map.t ->
+    ((Lang.Make(F).security * Lang.Make(F).Value.packed * (Var.t * F.t) list) String.Map.t
+     * Lang.Make(F).Value.packed String.Map.t
+     * Code.env) Gen.t
 
   val test : 'a Lang.Make(F).Expr.t -> unit
 end

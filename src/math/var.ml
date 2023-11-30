@@ -16,7 +16,7 @@ let make =
   let cntr = ref 0 in
   fun prefix ->
     incr cntr;
-    of_string (Printf.sprintf "%s%d" prefix !cntr)
+    of_string (Printf.sprintf "%s__%d" prefix !cntr)
 
 module Var_list = struct
   type t = var list [@@deriving yojson]
