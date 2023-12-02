@@ -30,15 +30,17 @@ module type G = sig
   include JSON.Conv.S with type t := t
 end
 
+module type F = sig
+  include Field.COMPARABLE
+  include G with type t := t and type fr := t
+  val ( ** ) : t -> Z.t -> t
+  val gen : t Gen.t
+  module Poly : Polynomial.S with type f = t
+  val order : Z.t
+end
+
 module type S = sig
-  module Fr : sig
-    include Field.COMPARABLE
-    include G with type t := t and type fr := t
-    val ( ** ) : t -> Z.t -> t
-    val gen : t Gen.t
-    module Poly : Polynomial.S with type f = t
-    val order : Z.t
-  end
+  module Fr : F
   module G1 : G with type fr := Fr.t
   module G2 : G with type fr := Fr.t
   module GT : G with type fr := Fr.t

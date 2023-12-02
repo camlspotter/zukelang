@@ -1,11 +1,6 @@
 open Misclib
 
-module Make(F : sig
-    include Field.COMPARABLE
-    val gen : t Gen.t
-    val ( ** ) : t -> Z.t -> t
-    val order : Z.t
-  end) : sig
+module Make(F : Curve.F) : sig
 
   module Code : sig
     type code =

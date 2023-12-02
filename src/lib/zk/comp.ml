@@ -1,12 +1,7 @@
 (* to avoid silly name crash *)
 open Misclib
 
-module Make(F : sig
-    include Field.COMPARABLE
-    val gen : t Gen.t
-    val ( ** ) : t -> Z.t -> t
-    val order : Z.t
-  end ) = struct
+module Make(F : Curve.F) = struct
 
   module Root = Curve.Root_of_unity(F)
 

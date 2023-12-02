@@ -21,12 +21,7 @@ module type S = sig
 end
 
 module Test
-    (F : sig
-       include Field.COMPARABLE
-       val gen : t Gen.t
-       val ( ** ) : t -> Z.t -> t
-       val order : Z.t
-     end)
+    (F : Curve.F)
     (Protocol : S with type f = F.t
                    and type circuit = Circuit.Make(F).t
                    and type qap = QAP.Make(F).t
@@ -204,12 +199,7 @@ module Test
 end
 
 module Test_suites
-    (F : sig
-       include Field.COMPARABLE
-       val gen : t Gen.t
-       val ( ** ) : t -> Z.t -> t
-       val order : Z.t
-     end)
+    (F : Curve.F)
     (Protocol : S with type f = F.t
                    and type circuit = Circuit.Make(F).t
                    and type qap = QAP.Make(F).t
