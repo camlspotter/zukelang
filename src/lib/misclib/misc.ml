@@ -24,6 +24,11 @@ end
 
 module Z = struct
   include Z
+
+  let of_z = Fun.id
+
+  let gen sz rng = Z.random_int ~rng sz
+
   let pp = pp_print
 
   open JSON.Conv
@@ -41,4 +46,6 @@ module Q = struct
   let pp = pp_print
 
   let is_zero x = Q.(x = zero)
+
+  let of_z z = { num= z; den= Z.zero }
 end

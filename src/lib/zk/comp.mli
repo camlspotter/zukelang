@@ -3,6 +3,8 @@ open Misclib
 module Make(F : sig
     include Field.COMPARABLE
     val gen : t Gen.t
+    val ( ** ) : t -> Z.t -> t
+    val order : Z.t
   end) : sig
 
   module Code : sig

@@ -53,44 +53,13 @@ module Bls12_381 : S
   and type G2.t = Bls12_381.G2.t
   and type GT.t = Bls12_381.GT.t
 
-(*
-module Bls12_381 : sig
-  module Fr : sig
-    include module type of struct include Bls12_381.Fr end
+module Root_of_unity(F : sig
+    include Field.S
+    val ( ** ) : t -> Z.t -> t
+    val order : Z.t
+  end) : sig
 
-    include G with type t := t
-               and type fr := t
+  (* [f_of_uint base x] computes the [F.t] value for $x$ of [base] bit uint *)
+  val f_of_uint : int -> int -> F.t option
 
-    val gen : t Gen.t
-
-    module Poly : sig
-      include Polynomial.S with type f = t
-
-      val of_q : Q.t Polynomial.t -> t
-    end
-  end
-
-  module G1 : sig
-    include module type of struct include Bls12_381.G1 end
-
-    include G with type t := t
-               and type fr := Fr.t
-  end
-
-  module G2 : sig
-    include module type of struct include Bls12_381.G2 end
-
-    include G with type t := t
-               and type fr := Fr.t
-  end
-
-  module GT : sig
-    include module type of struct include Bls12_381.GT end
-
-    include G with type t := t
-               and type fr := Fr.t
-  end
-
-  module Pairing : module type of struct include Bls12_381.Pairing end
 end
-*)

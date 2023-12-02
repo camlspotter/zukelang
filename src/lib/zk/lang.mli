@@ -3,6 +3,8 @@ open Misclib
 module Make(F : sig
     include Field.COMPARABLE
     val gen : t Gen.t
+    val ( ** ) : t -> Z.t -> t
+    val order : Z.t
 end) : sig
 
   type security = Public | Secret
@@ -10,9 +12,12 @@ end) : sig
   val pp_security : security printer
 
   module Type : sig
+    type uint32
+
     type _ t =
       | Field : F.t t
       | Bool : bool t
+      | Uint32 : uint32 t
       | Pair : 'a t * 'b t -> ('a * 'b) t
       | Either : 'a t * 'b t -> ('a, 'b) Either.t t
 
@@ -29,6 +34,7 @@ end) : sig
     and 'a desc =
       | Field : F.t -> F.t desc
       | Bool : bool -> bool desc
+      | Uint32 : int -> Type.uint32 desc
       | Add : F.t t * F.t t -> F.t desc
       | Sub : F.t t * F.t t -> F.t desc
       | Mul : F.t t * F.t t -> F.t desc
@@ -49,6 +55,7 @@ end) : sig
       | Left : 'a t -> ('a, 'e) Either.t desc
       | Right : 'b t -> ('f, 'b) Either.t desc
       | Case : ('a, 'b) Either.t t * Var.var * 'c t * Var.var * 'c t -> 'c desc
+      | Add_uint32 : Type.uint32 t * Type.uint32 t -> Type.uint32 desc
 
     val ptree : 'a t -> Ptree.t
 
@@ -57,6 +64,8 @@ end) : sig
     module Combinator : sig
       val ty_field : F.t Type.t
       val ty_bool : bool Type.t
+      val ty_uint32 : Type.uint32 Type.t
+
       val ( *: )  : 'a Type.t -> 'b Type.t -> ('a * 'b) Type.t
       val ( +: )  : 'a Type.t -> 'b Type.t -> ('a, 'b) Either.t Type.t
 
@@ -65,6 +74,7 @@ end) : sig
 
       val bool : bool -> bool t
       val field : F.t -> F.t t
+      val uint32 : int -> Type.uint32 t
       val ( ! ) : int -> F.t t
       val ( + ) : F.t t -> F.t t -> F.t t
       val ( - ) : F.t t -> F.t t -> F.t t
@@ -85,6 +95,10 @@ end) : sig
       val left : 'a t -> 'b Type.t -> ('a, 'b) Either.t t
       val right : 'a Type.t -> 'b t -> ('a, 'b) Either.t t
       val case : ('a, 'b) Either.t t -> ('a t -> 'c t) -> ('b t -> 'c t) -> 'c t
+
+      module Uint32 : sig
+        val (+) : Type.uint32 t -> Type.uint32 t -> Type.uint32 t
+      end
     end
   end
 
@@ -92,6 +106,7 @@ end) : sig
     type _ t =
       | Field : F.t -> F.t t
       | Bool : bool -> bool t
+      | Uint32 : int -> Type.uint32 t
       | Pair : 'a t * 'b t -> ('a * 'b) t
       | Left : 'a t -> ('a, 'c) Either.t t
       | Right : 'b t -> ('d, 'b) Either.t t

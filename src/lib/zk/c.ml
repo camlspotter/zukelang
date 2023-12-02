@@ -25,6 +25,8 @@ let (=.) =
 
 let of_int i = (float i, 0.)
 
+let of_z z = (Z.to_float z, 0.)
+
 let one = (1.0, 0.)
 
 let polar ~r ~t = r *. cos t, r *. sin t

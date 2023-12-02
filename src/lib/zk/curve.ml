@@ -232,3 +232,66 @@ let () =
   assert (G1.(eq
                 (one * Fr.(fr a * fr b + fr c * fr d))
                 (one * Fr.(fr a * fr b) + one * Fr.(fr c * fr d))))
+
+module Root_of_unity(F : sig
+    include Field.S
+    val ( ** ) : t -> Z.t -> t
+    val order : Z.t
+  end) = struct
+
+  let v =
+    if not F.(of_z order = zero) then
+      (* Is order broken? *)
+      None
+    else
+      (* #F = 2^n * a + 1 for some odd number [a] *)
+      let n, a =
+        let x = Z.(F.order - one) in
+        let n =
+          let rec loop n x =
+            let d, r = Z.div_rem x (Z.of_int 2) in
+            if Z.(r = zero) then loop (n+1) d
+            else n
+          in
+          loop 0 x
+        in
+        let a, r = Z.(div_rem x (of_int 2 ** n)) in
+        assert Z.(r = zero);
+        n, a
+      in
+      assert (n > 0); (* Since #F is prime *)
+      (*
+         From Fermat's little theorem,
+
+         $g^{\#F - 1} = 1  ~(\mathrm{mod~} \#F)  \mathrm{~for~}  g \in F$
+
+         therefore
+
+         $g^{2^n \cdot a} = 1$
+
+         $(g^a)^{2^{n}} = 1$
+
+         $g^a$ is a $2^n$-th root of unity
+
+         Let's find a primitive $2^n$-th root of unity, which is
+         $(g^a)^{2^n} = 1$ but $(g^a)^{2^{n-1}} \neq 1$
+      *)
+      let ga =
+        let rec loop g =
+          let ga (* $g^a$ *) = F.(g ** a) in
+          assert F.(ga ** Z.(one lsl n) = one);
+          if F.(ga ** Z.(one lsl Stdlib.(n-1)) <> one) then ga
+          else loop F.(g + one)
+        in
+        loop F.one
+      in
+      Some (n, ga)
+
+  let f_of_uint n x =
+    match v with
+    | None -> None
+    | Some (n', g) ->
+        if n > n' then None
+        else
+          Some (F.(g ** Z.of_int Stdlib.(x lsl (n' - n))))
+end

@@ -6,7 +6,7 @@ val var : string -> t
 
 val pvar : string -> Parsetree.pattern
 
-val int : string -> t
+val int : ?suffix:char -> string -> t
 
 val string : string -> t
 

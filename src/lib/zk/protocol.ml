@@ -24,6 +24,8 @@ module Test
     (F : sig
        include Field.COMPARABLE
        val gen : t Gen.t
+       val ( ** ) : t -> Z.t -> t
+       val order : Z.t
      end)
     (Protocol : S with type f = F.t
                    and type circuit = Circuit.Make(F).t

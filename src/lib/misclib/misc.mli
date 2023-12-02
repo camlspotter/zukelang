@@ -20,6 +20,10 @@ end
 module Z : sig
   include module type of struct include Z end
 
+  val of_z : Z.t -> t
+
+  val gen : t -> t Gen.t
+
   val pp : t Format.printer
 
   val yojson_of_t : t -> JSON.t
@@ -37,4 +41,6 @@ module Q : sig
   val yojson_of_t : t -> JSON.t
 
   val is_zero : t -> bool
+
+  val of_z : Z.t -> t
 end

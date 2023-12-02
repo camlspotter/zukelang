@@ -4,7 +4,17 @@ open Misclib
 module Make(F : sig
     include Field.COMPARABLE
     val gen : t Gen.t
+    val ( ** ) : t -> Z.t -> t
+    val order : Z.t
   end ) = struct
+
+  module Root = Curve.Root_of_unity(F)
+
+  let f_of_uint32 i =
+    match Root.f_of_uint 32 i with
+    | None -> invalid_arg "This field does not support uint32"
+    | Some x -> x
+
   module Lang = Lang.Make(F)
 
   module Circuit = Circuit.Make(F)
@@ -118,7 +128,7 @@ module Make(F : sig
   end
 
   let rec components : type a. a Lang.Type.t -> int = function
-    | Field | Bool -> 1
+    | Field | Bool | Uint32 -> 1
     | Pair (t1, t2) -> components t1 + components t2
     | Either (t1, t2) -> max (components t1) (components t2) + 1
 
@@ -137,6 +147,7 @@ module Make(F : sig
         let cs = components ty - 1 in
         let fs = compile_value ty2 v in
         F.one :: fs @ List.init (cs - List.length fs) (fun _ -> F.zero)
+    | _, Uint32 i -> [f_of_uint32 i]
     | _ -> assert false
 
   module GateM = struct
@@ -213,6 +224,7 @@ module Make(F : sig
           return1 @@ Affine.of_F f
       | Bool true -> return1 !1
       | Bool false -> return1 !0
+      | Uint32 i -> return1 @@ Affine.of_F (f_of_uint32 i)
       | Input (name, security) ->
           add_input name security e.ty
       | Add (t1, t2) ->
@@ -431,6 +443,8 @@ module Make(F : sig
                in
                mapM join (List.combine c d)
            | _ -> assert false)
+      | Add_uint32 (a, b) ->
+          compile env ExprC.(to_field a * to_field b)
 
   (* If an output affine is more complex than a variable, add a gate
      to add a variable to alias the affine. *)
