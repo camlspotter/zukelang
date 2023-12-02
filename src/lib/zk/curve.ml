@@ -35,10 +35,10 @@ module type G = sig
   val pp : t printer
 
   val sum_map : 'a Var.Map.t -> (Var.t -> 'a -> t) -> t
-  (** $\Sigma_{k\in Dom(m)} f k mk$ *)
+  (** $\Sigma_{k\in Dom(m)} f(k, m_k)$ *)
 
   val dot : t Var.Map.t -> fr Var.Map.t -> t
-  (** $\Sigma_{k\in Dom(m)} mk \cdot ck$ *)
+  (** $\Sigma_{k\in Dom(m)} m_k \cdot c_k$ *)
 
   val powers : int -> fr -> t list
   (** $\{ g^s^i \}_{i\in[d]}$ *)
