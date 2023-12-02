@@ -44,3 +44,15 @@ module Test
 
     val random_test : 'a Lang.Make(F).Expr.t -> unit
   end
+
+module Test_suites
+    (F : sig
+       include Field.COMPARABLE
+       val gen : t Gen.t
+       val ( ** ) : t -> Z.t -> t
+       val order : Z.t
+     end)
+    (Protocol : S with type f = F.t
+                   and type circuit = Circuit.Make(F).t
+                   and type qap = QAP.Make(F).t
+    ) : sig end
