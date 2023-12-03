@@ -38,3 +38,10 @@ module Monad = Monad.Make(struct
     let map = Result.map
     let return x = Ok x
   end)
+
+exception Error of error
+
+let raise e =
+  match e with
+  | Exn exn -> raise exn
+  | _ -> raise (Error e)
