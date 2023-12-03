@@ -275,10 +275,17 @@ module Test_suites
     let_ (input "input" secret (ty_field *: ty_field)) @@ fun x ->
     fst x + snd x
 
-  (* uint32 *)
+  (* uint32 + *)
   let () =
     Test.random_test @@
     let_ (input "input" secret ty_uint32) @@ fun x ->
     Uint32.(x + x)
+
+  (* uint32 - *)
+  let () =
+    Test.random_test @@
+    let_ (input "input" secret ty_uint32) @@ fun x ->
+    let_ (input "input2" secret ty_uint32) @@ fun y ->
+    Uint32.(x - y)
 
 end

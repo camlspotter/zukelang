@@ -101,6 +101,7 @@ module Make(F : Curve.F) = struct
       | Right : 'b t -> (_, 'b) Either.t desc
       | Case : ('a, 'b) Either.t t * Var.t * 'c t * Var.t * 'c t -> 'c desc
       | Add_uint32 : Type.uint32 t * Type.uint32 t -> Type.uint32 desc
+      | Sub_uint32 : Type.uint32 t * Type.uint32 t -> Type.uint32 desc
 
     let ptree e =
       let rec ptree : type a. a t -> Ptree.t = fun e ->
@@ -139,6 +140,7 @@ module Make(F : Curve.F) = struct
               | Left [%p Ptree.pvar @@ Var.to_string va] -> [%e ptree a]
               | Right [%p Ptree.pvar @@ Var.to_string vb] -> [%e ptree b]]
         | Add_uint32 (t1, t2) -> [%expr [%e ptree t1] + [%e ptree t2]]
+        | Sub_uint32 (t1, t2) -> [%expr [%e ptree t1] - [%e ptree t2]]
       in
       ptree e
 
@@ -236,6 +238,7 @@ module Make(F : Curve.F) = struct
 
       module Uint32 = struct
         let (+) a b = mk (Add_uint32 (a, b)) ty_uint32
+        let (-) a b = mk (Sub_uint32 (a, b)) ty_uint32
       end
     end
   end
@@ -398,11 +401,19 @@ module Make(F : Curve.F) = struct
           | Add_uint32 (a, b) ->
               let a = eval env a in
               let b = eval env b in
-              match a, b with
+              (match a, b with
               | Uint32 a, Uint32 b ->
                   let c = a + b in
                   Uint32 (if c >= 1 lsl 32 then c - 1 lsl 32 else c)
-              | _ -> assert false
+              | _ -> assert false)
+          | Sub_uint32 (a, b) ->
+              let a = eval env a in
+              let b = eval env b in
+              (match a, b with
+              | Uint32 a, Uint32 b ->
+                  let c = a - b in
+                  Uint32 (if c < 0 then c + 1 lsl 32 else c)
+              | _ -> assert false)
       in
       eval Var.Map.empty e
   end

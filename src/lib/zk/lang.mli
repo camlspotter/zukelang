@@ -51,6 +51,7 @@ module Make(F : Curve.F) : sig
       | Right : 'b t -> ('f, 'b) Either.t desc
       | Case : ('a, 'b) Either.t t * Var.var * 'c t * Var.var * 'c t -> 'c desc
       | Add_uint32 : Type.uint32 t * Type.uint32 t -> Type.uint32 desc
+      | Sub_uint32 : Type.uint32 t * Type.uint32 t -> Type.uint32 desc
 
     val ptree : 'a t -> Ptree.t
 
@@ -93,6 +94,7 @@ module Make(F : Curve.F) : sig
 
       module Uint32 : sig
         val (+) : Type.uint32 t -> Type.uint32 t -> Type.uint32 t
+        val (-) : Type.uint32 t -> Type.uint32 t -> Type.uint32 t
       end
     end
   end

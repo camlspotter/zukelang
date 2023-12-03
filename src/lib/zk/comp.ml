@@ -440,6 +440,8 @@ module Make(F : Curve.F) = struct
            | _ -> assert false)
       | Add_uint32 (a, b) ->
           compile env ExprC.(to_field a * to_field b)
+      | Sub_uint32 (a, b) ->
+          compile env ExprC.(to_field a / to_field b)
 
   (* If an output affine is more complex than a variable, add a gate
      to add a variable to alias the affine. *)
