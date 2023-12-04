@@ -34,10 +34,13 @@ module Test
                    and type qap = QAP.Make(F).t
     )
   : sig
-    val test :
-      'a Lang.Make(F).Expr.t -> Lang.Make(F).Value.packed String.Map.t -> unit
 
-    val random_test : 'a Lang.Make(F).Expr.t -> unit
+    module Lang : module type of Lang.Make(F)
+
+    val test :
+      'a Lang.Expr.t -> Lang.Value.packed String.Map.t -> unit
+
+    val random_test : 'a Lang.Expr.t -> unit
   end
 
 module Test_suites

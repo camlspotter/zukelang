@@ -24,9 +24,11 @@ end
 
 module FFT_C : sig
 
-  val fft : ?degree:int -> Polynomial.Make(C).t -> C.t array
+  module Polynomial : module type of Polynomial.Make(C)
 
-  val ifft : C.t array -> Polynomial.Make(C).t
+  val fft : ?degree:int -> Polynomial.t -> C.t array
+
+  val ifft : C.t array -> Polynomial.t
 
 end
 
