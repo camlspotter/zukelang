@@ -52,10 +52,13 @@ end
 module type F = sig
   include Field.COMPARABLE
   include G with type t := t and type fr := t
-  val ( ** ) : t -> Z.t -> t
-  val gen : t Gen.t
   module Poly : Polynomial.S with type f = t
+
   val order : Z.t
+
+  val ( ** ) : t -> Z.t -> t
+
+  val gen : t Gen.t
 end
 
 module type S = sig
@@ -235,11 +238,7 @@ let () =
                 (one * Fr.(fr a * fr b + fr c * fr d))
                 (one * Fr.(fr a * fr b) + one * Fr.(fr c * fr d))))
 
-module Root_of_unity(F : sig
-    include Field.S
-    val ( ** ) : t -> Z.t -> t
-    val order : Z.t
-  end) = struct
+module Root_of_unity(F : F) = struct
 
   let v =
     if not F.(of_z order = zero) then

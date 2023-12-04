@@ -33,10 +33,14 @@ end
 module type F = sig
   include Field.COMPARABLE
   include G with type t := t and type fr := t
-  val ( ** ) : t -> Z.t -> t
-  val gen : t Gen.t
   module Poly : Polynomial.S with type f = t
+
   val order : Z.t
+
+  val ( ** ) : t -> Z.t -> t
+
+  val gen : t Gen.t
+
 end
 
 module type S = sig
@@ -51,15 +55,11 @@ end
 
 module Bls12_381 : S
   with type Fr.t = Bls12_381.Fr.t
-  and type G1.t = Bls12_381.G1.t
-  and type G2.t = Bls12_381.G2.t
-  and type GT.t = Bls12_381.GT.t
+   and type G1.t = Bls12_381.G1.t
+   and type G2.t = Bls12_381.G2.t
+   and type GT.t = Bls12_381.GT.t
 
-module Root_of_unity(F : sig
-    include Field.S
-    val ( ** ) : t -> Z.t -> t
-    val order : Z.t
-  end) : sig
+module Root_of_unity(F : F) : sig
 
   (* [f_of_uint base x] computes the [F.t] value for $x$ of [base] bit uint *)
   val f_of_uint : int -> int -> F.t option
