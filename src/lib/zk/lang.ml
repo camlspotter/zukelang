@@ -108,7 +108,7 @@ module Make(F : Curve.F) = struct
         let loc = Location.none in
         match e.desc with
         | Field f -> Ptree.int @@ Format.asprintf "%a" F.pp f
-        | Uint32 i -> Ptree.int ~suffix:'u' @@ Format.asprintf "%d" i
+        | Uint32 i -> Ptree.int ~suffix:'u' @@ string_of_int i
         | Bool true -> [%expr true]
         | Bool false -> [%expr false]
         | Add (t1, t2) -> [%expr [%e ptree t1] + [%e ptree t2]]
@@ -287,7 +287,7 @@ module Make(F : Curve.F) = struct
         | Field f -> Ptree.int @@ Format.asprintf "%a" F.pp f
         | Bool true -> [%expr true]
         | Bool false -> [%expr false]
-        | Uint32 i -> Ptree.int @@ string_of_int i
+        | Uint32 i -> Ptree.int ~suffix:'u' @@ string_of_int i
         | Pair (a, b) -> [%expr ([%e ptree a], [%e ptree b])]
         | Left a -> [%expr Left [%e ptree a]]
         | Right a -> [%expr Right [%e ptree a]]
