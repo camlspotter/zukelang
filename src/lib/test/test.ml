@@ -281,8 +281,11 @@ module Make_suites
 
   let trans_test e =
     let module Trans = Syntax.Trans.Make(F) in
-    match Exn.get_ok @@ Trans.f e with
-    | Packed e -> Test.random_test e
+    match Trans.f e with
+    | Ok (Packed e) -> Test.random_test e
+    | Error e ->
+        Format.ef "%a@." Exn.pp e;
+        assert false
 
   (* I know [x] such that [x^3 + x + 3 = y] *)
   let () =
@@ -306,7 +309,7 @@ module Make_suites
     ];
     trans_test [%expr
       let x : (int * int, bool) Either.t = secret "input" in
-      match x with Left x -> fst x + snd x | Right _x -> 1
+      match x with Left x -> fst x * snd x | Right _x -> 1
     ];
     trans_test [%expr secret "input" + 1];
     trans_test [%expr let x : int = secret "input" in (x + 1, x + 2)];
