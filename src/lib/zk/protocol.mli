@@ -26,26 +26,3 @@ module type S = sig
   val verify : f Var.Map.t -> vkey -> proof -> bool
   (** Verify the computation proof *)
 end
-
-module Test
-    (F : Curve.F)
-    (Protocol : S with type f = F.t
-                   and type circuit = Circuit.Make(F).t
-                   and type qap = QAP.Make(F).t
-    )
-  : sig
-
-    module Lang : module type of Lang.Make(F)
-
-    val test :
-      'a Lang.Expr.t -> Lang.Value.packed String.Map.t -> unit
-
-    val random_test : 'a Lang.Expr.t -> unit
-  end
-
-module Test_suites
-    (F : Curve.F)
-    (Protocol : S with type f = F.t
-                   and type circuit = Circuit.Make(F).t
-                   and type qap = QAP.Make(F).t
-    ) : sig end
