@@ -4,6 +4,8 @@ type printer = t -> (Format.t -> unit) option
 
 val register_printer : printer -> unit
 
+val pp : t Format.printer
+
 val to_string : t -> string
 
 type exn += String of string
