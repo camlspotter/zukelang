@@ -13,7 +13,7 @@ module Converter : sig
     type src
     type dst
     val encode : src -> dst
-    val decode : dst -> src Error.result
+    val decode : dst -> src Exn.result
   end
 end
 

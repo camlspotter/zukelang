@@ -1,7 +1,17 @@
 type t = exn
 
+type printer = t -> (Format.t -> unit) option
+
+val register_printer : printer -> unit
+
 val to_string : t -> string
 
-val catch : (unit -> 'a) -> 'a Error.result
+type exn += String of string
 
-val catch_as_string : (unit -> 'a) -> ('a, string) result
+type 'a result = ('a, t) Result.t
+
+module Monad : Monad.T with type 'a t = 'a result
+
+val catch : (unit -> 'a) -> 'a result
+
+val get_ok : 'a result -> 'a

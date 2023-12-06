@@ -1,6 +1,7 @@
 include Misc
 
 module Format = Format
+
 type 'a printer = 'a Format.printer
 
 module Monad = Monad
@@ -12,7 +13,6 @@ module Result = Result
 module Gen = Gen
 module StateM = StateM
 module Exn = Exn
-module Error = Error
 module JSON = JSON
 module GADT = GADT
 module Ptree = Ptree
