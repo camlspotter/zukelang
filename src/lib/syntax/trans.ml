@@ -170,6 +170,60 @@ module Make(F : Curve.F) = struct
                        | Some Refl -> Packed C.(right tyl a))
                   | _ -> assert false)
              | _ -> illegalf e.exp_loc "Invalid application")
+    | Texp_match (a, cases, _) ->
+        let Packed ty = type_ e.exp_loc e.exp_type in
+        (match cases with
+         | [c1; c2] ->
+             let case ({ c_lhs; c_guard; c_rhs} : _ case) =
+               (match c_guard with
+                | Some e -> illegalf e.exp_loc "Guard is not supported"
+                | None -> ());
+               let lr, p =
+                 match c_lhs.pat_desc with
+                 | Tpat_value pd ->
+                     (match (pd :> pattern) with
+                      | { pat_desc= Tpat_construct ({txt= Lident "Left"; _},
+                                                    _,
+                                                    [p], _); _} -> `Left, p
+                      | { pat_desc= Tpat_construct ({txt= Lident "Right"; _},
+                                                    _,
+                                                    [p], _); _} -> `Right, p
+                      | _ -> illegalf c_lhs.pat_loc "complex pattern is not supported")
+                 | _ -> illegalf c_lhs.pat_loc "complex pattern is not supported"
+               in
+               let txt =
+                 match p.pat_desc with
+                 | Tpat_var (_, {txt; _}) -> txt
+                 | _ -> illegalf p.pat_loc "complex pattern is not supported"
+               in
+               lr, txt, p.pat_type, c_rhs
+             in
+             (match case c1, case c2 with
+              | (`Left, vl, tyvl, cl), (`Right, vr, tyvr, cr)
+              | (`Right, vr, tyvr, cr), (`Left, vl, tyvl, cl) ->
+                  let Packed tya = type_ a.exp_loc a.exp_type in
+                  let Packed tyl = type_ cl.exp_loc tyvl in
+                  let Packed tyr = type_ cr.exp_loc tyvr in
+                  (match Lang.Type.equal tya (Either (tyl, tyr)) with
+                   | None ->
+                       assert false
+                   | Some Refl ->
+                       let a = unpack' tya @@ expr env a in
+                       let l = fun def ->
+                         let env = (vl, Packed def) :: env in
+                         unpack' ty @@ expr env cl
+                       in
+                       let r = fun def ->
+                         let env = (vr, Packed def) :: env in
+                         unpack' ty @@ expr env cr
+                       in
+                       let _ = (a, l, r) in
+                       (match a.ty with
+                        | Either (_, _) -> Packed (C.case a l r)
+                        | _ -> assert false))
+              | _ -> illegalf e.exp_loc "Not in the form of match _ with Left _ -> _ | Right _ -> _")
+         | _ -> illegalf e.exp_loc "Not in the form of match _ with Left _ -> _ | Right _ -> _")
+
     | _ ->
         Format.eprintf "expr: %a@."
           Pprintast.expression (Untypeast.untype_expression e);

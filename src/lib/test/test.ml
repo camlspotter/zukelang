@@ -239,6 +239,12 @@ module Make_suites
     let_ (input "input" secret ty_bool) @@ fun x ->
     if_ x (left x ty_bool) (right ty_bool x)
 
+  (* case *)
+  let () =
+    Test.random_test @@
+    let_ (input "input" secret (ty_field +: ty_bool)) @@ fun x ->
+    case x (fun i -> i == !0) (fun b -> b)
+
   (* secret without let *)
   let () =
     Test.random_test @@
@@ -297,6 +303,10 @@ module Make_suites
     trans_test [%expr
       let x : bool = secret "input" in
       if x then Either.Left x else Either.Right x
+    ];
+    trans_test [%expr
+      let x : (int * int, bool) Either.t = secret "input" in
+      match x with Left x -> fst x + snd x | Right _x -> 1
     ];
     trans_test [%expr secret "input" + 1];
     trans_test [%expr let x : int = secret "input" in (x + 1, x + 2)];
