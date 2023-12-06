@@ -1,0 +1,6 @@
+(tests
+ (names main)
+ (libraries zk syntax)
+ (preprocess (pps ppxlib.metaquot))
+)
+

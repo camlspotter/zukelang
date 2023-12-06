@@ -1,0 +1,5 @@
+(library
+ (name syntax)
+; (public_name zukelang.syntax)
+ (libraries zk ppxlib sexplib unix)
+)
