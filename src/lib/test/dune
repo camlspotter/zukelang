@@ -1,0 +1,7 @@
+(library
+  (name test)
+;  (public_name zukelang.test)
+  (libraries zk syntax)
+  (preprocess (pps ppxlib.metaquot))
+;  (flags :standard -warn-error -9-32-34-37)
+  )

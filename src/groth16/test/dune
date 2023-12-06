@@ -1,4 +1,4 @@
 (tests
   (names main)
-  (libraries groth16)
+  (libraries groth16 test)
   (flags :standard -warn-error -9-32-34-37))
