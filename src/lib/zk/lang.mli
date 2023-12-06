@@ -57,6 +57,10 @@ module Make(F : Curve.F) : sig
 
     val pp : Format.formatter -> 'a t -> unit
 
+    type packed = Packed : 'a t -> packed
+
+    val unpack : 'a. 'a Type.t -> packed -> 'a t option
+
     module Combinator : sig
       val ty_field : F.t Type.t
       val ty_bool : bool Type.t

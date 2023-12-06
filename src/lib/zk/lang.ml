@@ -146,6 +146,14 @@ module Make(F : Curve.F) = struct
 
     let pp ppf t = Ptree.pp ppf @@ ptree t
 
+    type packed = Packed : 'a t -> packed
+
+    let unpack : type a. a Type.t -> packed -> a t option =
+      fun ty (Packed ({ ty=ty'; _ } as e)) ->
+      match Type.equal ty ty' with
+      | Some GADT.Refl -> Some e
+      | None -> None
+
     module Combinator = struct
       let ty_field : _ Type.t = Field
 
