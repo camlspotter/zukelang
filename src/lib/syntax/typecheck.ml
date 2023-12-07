@@ -5,7 +5,9 @@ let () =
   | Type_error report -> Some (fun ppf -> Location.print_report ppf report)
   | _ -> None
 
-let expression extend_env (e : Ppxlib.Parsetree.expression) =
+let expression extend_env (e : Ppxlib_ast.Ast.expression) =
+  (* We need OCaml's one, not one for Ppxlib *)
+  let e = Ppxlib.Selected_ast.to_ocaml Expression e in
   let source_file =
     let Location.{ loc_start; _ } = e.pexp_loc in
     loc_start.pos_fname

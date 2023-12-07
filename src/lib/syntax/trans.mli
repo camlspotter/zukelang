@@ -6,5 +6,5 @@ module Make(F : Curve.F) : sig
 
   exception Illegal of Warnings.loc * string
 
-  val f : Parsetree.expression -> Lang.Expr.packed Exn.result
+  val f : Ppxlib_ast.Ast.expression -> Lang.Expr.packed Exn.result
 end

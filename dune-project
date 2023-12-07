@@ -20,7 +20,7 @@
    (ocaml (and (>= "4.12.1") (< "5.0")))
    dune
    (zarith (>= "1.13"))
-   bls12-381
+   (bls12-381 (= "6.1.0"))
    (ppx_yojson_conv (>= "v0.16.0"))
    ppx_yojson_conv_lib
    hex

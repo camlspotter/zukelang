@@ -2,5 +2,5 @@ open Misclib
 
 val expression :
   (Env.t -> Env.t) ->
-  Ppxlib.Parsetree.expression ->
+  Ppxlib_ast.Ast.expression ->
   Typedtree.implementation Exn.result
