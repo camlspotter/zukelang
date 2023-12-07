@@ -9,7 +9,7 @@ license: "MIT"
 homepage: "https://github.com/camlspotter/zukelang"
 bug-reports: "https://github.com/camlspotter/zukelang/issues"
 depends: [
-  "ocaml" {>= "4.12.1" & < "5.0"}
+  "ocaml" {>= "4.12.1"}
   "dune" {>= "3.2"}
   "zarith" {>= "1.13"}
   "bls12-381" {= "6.1.0"}

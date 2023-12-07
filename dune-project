@@ -17,7 +17,7 @@
  (synopsis "A ZK language")
  (description "A ZK language")
  (depends
-   (ocaml (and (>= "4.12.1") (< "5.0")))
+   (ocaml (>= "4.12.1"))
    dune
    (zarith (>= "1.13"))
    (bls12-381 (= "6.1.0"))
