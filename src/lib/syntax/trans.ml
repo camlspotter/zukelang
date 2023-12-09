@@ -74,16 +74,28 @@ module Make(F : Curve.F) = struct
 
     | Texp_let (Nonrecursive, [b], body) ->
         let Packed ty = type_ e.exp_loc e.exp_type in
+        let Packed def = expr env b.vb_expr in
         (match b.vb_pat.pat_desc with
          | Tpat_var (_, {txt; _}) ->
-             let Packed def = expr env b.vb_expr in
              Packed (
                C.let_ def (fun def ->
                    let env = (txt, Packed def) :: env in
                    let body = expr env body in
                    unpack' ty body))
+
+         (* (x:t) is transformed into (_ as x : t) *)
+         | Tpat_alias ({pat_desc = Tpat_any; pat_loc; _}, _id, name)
+           when pat_loc = b.vb_pat.pat_loc ->
+             Packed (
+               C.let_ def (fun def ->
+                   let env = (name.txt, Packed def) :: env in
+                   let body = expr env body in
+                   unpack' ty body))
          | _ ->
-             illegalf b.vb_pat.pat_loc "Complex pattern is not supported")
+             illegalf b.vb_pat.pat_loc
+               "Complex pattern is not supported: %a"
+               Pprintast.pattern (Untypeast.untype_pattern b.vb_pat)
+        )
     | Texp_let (Nonrecursive, _, _) ->
         illegalf e.exp_loc "Recursive let is not supported"
     | Texp_let (Recursive, _, _) ->
