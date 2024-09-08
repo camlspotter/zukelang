@@ -23,6 +23,7 @@
    (bls12-381 (= "6.1.0"))
    (ppx_yojson_conv (>= "v0.16.0"))
    ppx_yojson_conv_lib
+   hacl-star
    hex
    ppxlib)
  (version "1.0.0"))
